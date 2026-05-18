@@ -14,11 +14,16 @@ import {
 import { formatDate, formatCurrency } from "@/lib/utils/format";
 import { canDo } from "@/lib/security/permissions";
 import { RequisicaoCompraSection } from "@/components/cotacao/requisicao-compra-section";
+import type { PurchaseRequisitionItem } from "@/types";
 
-interface Props { params: Promise<{ id: string }>; }
+interface Props {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ criar?: string }>;
+}
 
-export default async function CotacaoDetalhePage({ params }: Props) {
+export default async function CotacaoDetalhePage({ params, searchParams }: Props) {
   const { id } = await params;
+  const { criar } = await searchParams;
   const user = await getSession();
   if (!user) return null;
   const perms = canDo(user.role);
@@ -28,6 +33,27 @@ export default async function CotacaoDetalhePage({ params }: Props) {
 
   const orcamentos = mockOrcamentos.filter((o) => o.cotacaoId === id);
   const purchaseRequisition = findByCotacaoId(id);
+
+  const bestByItem = new Map<string, { valorUnitario: number; marca: string }>();
+  for (const orc of orcamentos) {
+    for (const oi of orc.itens) {
+      if (!oi.disponivel) continue;
+      const existing = bestByItem.get(oi.cotacaoItemId);
+      if (!existing || oi.valorUnitario < existing.valorUnitario) {
+        bestByItem.set(oi.cotacaoItemId, { valorUnitario: oi.valorUnitario, marca: oi.marcaCotada ?? "" });
+      }
+    }
+  }
+  const suggestedItems: PurchaseRequisitionItem[] = cotacao.itens.map((ci, i) => {
+    const best = bestByItem.get(ci.id);
+    return {
+      id: `s${i}`,
+      peca: ci.peca?.nome ?? "",
+      quantidade: ci.quantidade,
+      valorUnitario: best?.valorUnitario ?? 0,
+      observacao: best?.marca ? `Marca: ${best.marca}` : "",
+    };
+  });
 
   return (
     <div className="space-y-6">
@@ -40,8 +66,8 @@ export default async function CotacaoDetalhePage({ params }: Props) {
           {perms.compararOrcamento && orcamentos.length > 0 && (
             <Link href={`/comparador?cotacao=${id}`} className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-purple-700">Comparar orçamentos</Link>
           )}
-          {perms.gerarRequisicao && cotacao.status === "EM_ANALISE" && (
-            <Link href={`/requisicoes/nova?cotacao=${id}`} className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">Gerar requisição</Link>
+          {perms.gerarRequisicao && (
+            <Link href={`/cotacoes/${id}?criar=1#requisicao`} className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">Gerar requisição</Link>
           )}
         </div>
       </div>
@@ -114,12 +140,16 @@ export default async function CotacaoDetalhePage({ params }: Props) {
       </div>
 
       {perms.gerarRequisicao && (
-        <RequisicaoCompraSection
-          cotacaoId={id}
-          cotacaoCodigo={cotacao.codigo}
-          userName={user.nome}
-          initialRequisition={purchaseRequisition}
-        />
+        <div id="requisicao">
+          <RequisicaoCompraSection
+            cotacaoId={id}
+            cotacaoCodigo={cotacao.codigo}
+            userName={user.nome}
+            initialRequisition={purchaseRequisition}
+            autoOpen={criar === "1"}
+            suggestedItems={suggestedItems}
+          />
+        </div>
       )}
 
       {orcamentos.length > 0 && (

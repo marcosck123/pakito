@@ -216,6 +216,8 @@ interface Props {
   cotacaoCodigo: string;
   userName: string;
   initialRequisition: PurchaseRequisition | null;
+  autoOpen?: boolean;
+  suggestedItems?: PurchaseRequisitionItem[];
 }
 
 export function RequisicaoCompraSection({
@@ -223,26 +225,31 @@ export function RequisicaoCompraSection({
   cotacaoCodigo,
   userName,
   initialRequisition,
+  autoOpen = false,
+  suggestedItems,
 }: Props) {
   const [saved, setSaved] = useState<PurchaseRequisition | null>(initialRequisition);
-  const [mode, setMode] = useState<"view" | "form">("view");
+  const [mode, setMode] = useState<"view" | "form">(() =>
+    autoOpen && !initialRequisition ? "form" : "view"
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const today = new Date().toISOString().slice(0, 10);
   const defaultNumber = `RC-${cotacaoCodigo.replace("COT-", "")}`;
+  const defaultItems = suggestedItems && suggestedItems.length > 0 ? suggestedItems : [blankItem()];
 
   const { register, control, watch, handleSubmit, reset, formState } = useForm<FormValues>({
     defaultValues: saved
       ? { numero: saved.numero, data: saved.data, solicitante: saved.solicitante, responsavel: saved.responsavel, observacaoGeral: saved.observacaoGeral, itens: saved.itens }
-      : { numero: defaultNumber, data: today, solicitante: userName, responsavel: "", observacaoGeral: "", itens: [blankItem()] },
+      : { numero: defaultNumber, data: today, solicitante: userName, responsavel: "", observacaoGeral: "", itens: defaultItems },
   });
 
   const { fields, append, remove } = useFieldArray({ control, name: "itens" });
   const watched = watch();
 
   function openCreate() {
-    reset({ numero: defaultNumber, data: today, solicitante: userName, responsavel: "", observacaoGeral: "", itens: [blankItem()] });
+    reset({ numero: defaultNumber, data: today, solicitante: userName, responsavel: "", observacaoGeral: "", itens: defaultItems });
     setError("");
     setMode("form");
   }

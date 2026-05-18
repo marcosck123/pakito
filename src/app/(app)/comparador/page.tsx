@@ -25,7 +25,7 @@ export default async function ComparadorPage({ searchParams }: Props) {
           Cotações
         </Link>
         {cotacao && (
-          <Link href={`/requisicoes/nova?cotacao=${cotacao.id}`} className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">Gerar requisição</Link>
+          <Link href={`/cotacoes/${cotacao.id}?criar=1#requisicao`} className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">Gerar requisição</Link>
         )}
       </div>
 
