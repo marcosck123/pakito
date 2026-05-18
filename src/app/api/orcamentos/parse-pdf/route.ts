@@ -4,199 +4,241 @@ import { parseOrcamentoPdf } from "@/lib/pdf/parser";
 
 export const runtime = "nodejs";
 
+type Diagnostics = {
+  requestId: string;
+  step: string;
+  fileName: string | null;
+  fileType: string | null;
+  fileSize: number | null;
+  bufferLength: number | null;
+  textLength: number | null;
+  textPreview: string | null;
+  itemsFound: number | null;
+  reason: string | null;
+  parseError: string | null;
+  stack: string | null;
+};
+
 export async function POST(request: Request) {
-  // ── FormData ──────────────────────────────────────────────────────────────
-  let formData: FormData;
-  try {
-    formData = await request.formData();
-  } catch (err) {
-    console.error("[parse-pdf] failed to parse formData:", err);
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Requisição inválida — não foi possível ler o formulário.",
-        reason: "formdata_parse_error",
-        debug: { deploymentHint: process.env.VERCEL_GIT_COMMIT_SHA ?? "local" },
-      },
-      { status: 400 }
-    );
-  }
+  const requestId = crypto.randomUUID();
 
-  const file = formData.get("file") as File | null;
-  const cotacaoId = formData.get("cotacaoId") as string | null;
-
-  console.log("[parse-pdf] arquivo recebido:", {
-    found: !!file,
-    fileName: file?.name,
-    fileType: file?.type,
-    fileSize: file?.size,
-    cotacaoId,
-    allKeys: [...formData.keys()],
-  });
-
-  if (!file) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Arquivo não enviado.",
-        reason: "file_missing",
-        debug: {
-          receivedKeys: [...formData.keys()],
-          deploymentHint: process.env.VERCEL_GIT_COMMIT_SHA ?? "local",
-        },
-      },
-      { status: 400 }
-    );
-  }
-
-  if (file.type !== "application/pdf") {
-    return NextResponse.json(
-      {
-        success: false,
-        error: "O arquivo deve ser um PDF.",
-        reason: "wrong_mime_type",
-        debug: {
-          fileName: file.name,
-          fileType: file.type,
-          fileSize: file.size,
-          deploymentHint: process.env.VERCEL_GIT_COMMIT_SHA ?? "local",
-        },
-      },
-      { status: 400 }
-    );
-  }
-
-  // ── Buffer ────────────────────────────────────────────────────────────────
-  const buffer = Buffer.from(await file.arrayBuffer());
-
-  console.log("[parse-pdf] buffer:", {
-    bufferLength: buffer.length,
-    fileName: file.name,
-    fileSize: file.size,
-  });
-
-  if (!buffer.length) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Arquivo chegou vazio no servidor.",
-        reason: "empty_buffer",
-        debug: {
-          fileName: file.name,
-          fileType: file.type,
-          fileSize: file.size,
-          bufferLength: 0,
-          deploymentHint: process.env.VERCEL_GIT_COMMIT_SHA ?? "local",
-        },
-      },
-      { status: 422 }
-    );
-  }
-
-  // ── Extract text ──────────────────────────────────────────────────────────
-  let text = "";
-  try {
-    const pdfParseModule = await import("pdf-parse");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pdfParse: (buf: Buffer) => Promise<{ text: string; numpages: number }> =
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (pdfParseModule as any).default ?? pdfParseModule;
-    const data = await pdfParse(buffer);
-    text = data?.text ?? "";
-    console.log("[parse-pdf] pdf-parse ok:", { numpages: data?.numpages, textRawLength: text.length });
-  } catch (err) {
-    console.error("[parse-pdf] pdf-parse threw:", err);
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Não foi possível ler o PDF. Verifique se o arquivo está corrompido.",
-        reason: "pdf_parse_error",
-        debug: {
-          fileName: file.name,
-          fileType: file.type,
-          fileSize: file.size,
-          bufferLength: buffer.length,
-          parseError: err instanceof Error ? err.message : String(err),
-          deploymentHint: process.env.VERCEL_GIT_COMMIT_SHA ?? "local",
-        },
-      },
-      { status: 422 }
-    );
-  }
-
-  const textLength = text.replace(/\s/g, "").length;
-  const preview = text.slice(0, 500);
-
-  console.log("[parse-pdf] texto extraído:", { textLength, preview });
-
-  // ── Hard failure: no selectable text (scanned image) ─────────────────────
-  if (textLength < 30) {
-    return NextResponse.json(
-      {
-        success: false,
-        error:
-          "Este PDF não possui texto selecionável (provavelmente é uma imagem escaneada). Use a inserção manual ou um PDF com texto copiável.",
-        reason: "no_selectable_text",
-        debug: {
-          fileName: file.name,
-          fileType: file.type,
-          fileSize: file.size,
-          bufferLength: buffer.length,
-          textLength,
-          preview,
-          deploymentHint: process.env.VERCEL_GIT_COMMIT_SHA ?? "local",
-        },
-      },
-      { status: 422 }
-    );
-  }
-
-  // ── Parse items ───────────────────────────────────────────────────────────
-  const cotacao = cotacaoId ? mockCotacoes.find((c) => c.id === cotacaoId) : null;
-  const cotacaoItens =
-    cotacao?.itens.map((ci) => ({
-      id: ci.id,
-      nome: ci.peca?.nome ?? "",
-      codigoInterno: ci.peca?.codigoInterno,
-      codigoOriginal: ci.peca?.codigoOriginal,
-    })) ?? [];
-
-  const { itens, freteDetectado } = parseOrcamentoPdf(text, cotacaoItens);
-
-  console.log("[parse-pdf] parser:", { itemsFound: itens.length, freteDetectado });
-
-  const debug = {
-    fileName: file.name,
-    fileType: file.type,
-    fileSize: file.size,
-    bufferLength: buffer.length,
-    textLength,
-    preview,
-    itemsFound: itens.length,
-    deploymentHint: process.env.VERCEL_GIT_COMMIT_SHA ?? "local",
+  const diag: Diagnostics = {
+    requestId,
+    step: "request_started",
+    fileName: null,
+    fileType: null,
+    fileSize: null,
+    bufferLength: null,
+    textLength: null,
+    textPreview: null,
+    itemsFound: null,
+    reason: null,
+    parseError: null,
+    stack: null,
   };
 
-  // ── Soft: text extracted but no priced items found → let operator proceed ─
-  if (itens.length === 0) {
-    return NextResponse.json({
-      success: true,
-      requiresManualReview: true,
-      message:
-        "Texto extraído, mas nenhum item foi identificado automaticamente. Use a inserção manual assistida.",
-      itens: [],
-      freteDetectado,
-      rawText: text,
-      debug,
-    });
+  function log(label: string) {
+    console.log(`[parse-pdf] ${label}`, diag);
   }
 
-  return NextResponse.json({
-    success: true,
-    requiresManualReview: false,
-    message: "Itens extraídos. Confira antes de confirmar.",
-    itens,
-    freteDetectado,
-    rawText: text,
-    debug,
-  });
+  function errorResponse(status: number, userMessage: string, reason: string) {
+    diag.reason = reason;
+    diag.step = "response_error";
+    log("error_response");
+    return NextResponse.json(
+      {
+        success: false,
+        requestId,
+        error: userMessage,
+        reason,
+        debug: {
+          step: diag.step,
+          fileName: diag.fileName,
+          fileType: diag.fileType,
+          fileSize: diag.fileSize,
+          bufferLength: diag.bufferLength,
+          textLength: diag.textLength,
+          textPreview: diag.textPreview,
+          itemsFound: diag.itemsFound,
+          parseError: diag.parseError,
+        },
+      },
+      { status }
+    );
+  }
+
+  try {
+    // ── FormData ──────────────────────────────────────────────────────────
+    diag.step = "formdata_read";
+    log("reading_formdata");
+
+    let formData: FormData;
+    try {
+      formData = await request.formData();
+    } catch (err) {
+      diag.parseError = err instanceof Error ? err.message : String(err);
+      return errorResponse(400, "Requisição inválida — não foi possível ler o formulário.", "form_parse_error");
+    }
+
+    // ── File ──────────────────────────────────────────────────────────────
+    diag.step = "file_received";
+    const file = formData.get("file") as File | null;
+    const cotacaoId = formData.get("cotacaoId") as string | null;
+
+    diag.fileName = file?.name ?? null;
+    diag.fileType = file?.type ?? null;
+    diag.fileSize = file?.size ?? null;
+    log("file_received");
+
+    if (!file) {
+      return errorResponse(
+        400,
+        `Arquivo não encontrado na requisição. Campos recebidos: [${[...formData.keys()].join(", ")}]`,
+        "file_missing"
+      );
+    }
+
+    if (file.type !== "application/pdf") {
+      return errorResponse(
+        400,
+        `O arquivo deve ser um PDF. Tipo recebido: "${file.type || "(vazio)"}"`,
+        "wrong_mime_type"
+      );
+    }
+
+    // ── Buffer ────────────────────────────────────────────────────────────
+    diag.step = "buffer_created";
+    const buffer = Buffer.from(await file.arrayBuffer());
+    diag.bufferLength = buffer.length;
+    log("buffer_created");
+
+    if (!buffer.length) {
+      return errorResponse(400, "O arquivo chegou vazio no servidor.", "empty_buffer");
+    }
+
+    // ── pdf-parse ─────────────────────────────────────────────────────────
+    diag.step = "pdf_parse_started";
+    log("pdf_parse_started");
+
+    let text = "";
+    try {
+      const pdfParseModule = await import("pdf-parse");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pdfParse: (buf: Buffer) => Promise<{ text: string; numpages: number }> =
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (pdfParseModule as any).default ?? pdfParseModule;
+      const result = await pdfParse(buffer);
+      text = result?.text ?? "";
+      diag.step = "pdf_parse_success";
+      log("pdf_parse_success");
+    } catch (err) {
+      diag.step = "pdf_parse_error";
+      diag.parseError = err instanceof Error ? err.message : String(err);
+      diag.stack = err instanceof Error ? (err.stack ?? null) : null;
+      return errorResponse(
+        422,
+        "Não foi possível ler o PDF. Verifique se o arquivo está corrompido.",
+        "pdf_parse_error"
+      );
+    }
+
+    // ── Text validation ───────────────────────────────────────────────────
+    diag.step = "text_validation";
+    const textLength = text.replace(/\s/g, "").length;
+    const textPreview = text.slice(0, 500);
+    diag.textLength = textLength;
+    diag.textPreview = textPreview;
+    log("text_validation");
+
+    if (textLength < 30) {
+      return errorResponse(
+        422,
+        "Este PDF não possui texto selecionável (provavelmente é uma imagem escaneada). Use a inserção manual ou um PDF com texto copiável.",
+        "no_selectable_text"
+      );
+    }
+
+    // ── Parser ────────────────────────────────────────────────────────────
+    diag.step = "parser_started";
+    log("parser_started");
+
+    const cotacao = cotacaoId ? mockCotacoes.find((c) => c.id === cotacaoId) : null;
+    const cotacaoItens =
+      cotacao?.itens.map((ci) => ({
+        id: ci.id,
+        nome: ci.peca?.nome ?? "",
+        codigoInterno: ci.peca?.codigoInterno,
+        codigoOriginal: ci.peca?.codigoOriginal,
+      })) ?? [];
+
+    const { itens, freteDetectado } = parseOrcamentoPdf(text, cotacaoItens);
+
+    diag.step = "parser_success";
+    diag.itemsFound = itens.length;
+    log("parser_success");
+
+    const debugBase = {
+      step: diag.step,
+      fileName: diag.fileName,
+      fileType: diag.fileType,
+      fileSize: diag.fileSize,
+      bufferLength: diag.bufferLength,
+      textLength: diag.textLength,
+      textPreview: diag.textPreview,
+      itemsFound: diag.itemsFound,
+    };
+
+    // ── Soft: text OK but no items detected ───────────────────────────────
+    if (itens.length === 0) {
+      diag.step = "response_success";
+      diag.reason = "parser_no_items";
+      log("response_no_items");
+      return NextResponse.json({
+        success: true,
+        requiresManualReview: true,
+        requestId,
+        reason: "parser_no_items",
+        message:
+          "Texto extraído, mas nenhum item foi identificado automaticamente. Use a inserção manual assistida.",
+        itens: [],
+        freteDetectado,
+        rawText: text,
+        debug: { ...debugBase, itemsFound: 0 },
+      });
+    }
+
+    diag.step = "response_success";
+    log("response_ok");
+    return NextResponse.json({
+      success: true,
+      requiresManualReview: false,
+      requestId,
+      reason: null,
+      message: "Itens extraídos. Confira antes de confirmar.",
+      itens,
+      freteDetectado,
+      rawText: text,
+      debug: debugBase,
+    });
+  } catch (error) {
+    console.error("[parse-pdf] unexpected_error", {
+      requestId,
+      diagnostics: diag,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    return NextResponse.json(
+      {
+        success: false,
+        requestId,
+        error: "Erro inesperado ao processar PDF.",
+        reason: "unexpected_error",
+        debug: {
+          ...diag,
+          parseError: error instanceof Error ? error.message : String(error),
+        },
+      },
+      { status: 500 }
+    );
+  }
 }

@@ -13,14 +13,33 @@ import {
   AlertTriangle,
   AlertCircle,
   EyeOff,
+  ClipboardCopy,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils/format";
 import type { CotacaoItem, Fornecedor, Orcamento } from "@/types";
 import type { ExtractedItem } from "@/lib/pdf/parser";
 
+const SHOW_PDF_DEBUG = process.env.NEXT_PUBLIC_SHOW_PDF_DEBUG === "true";
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type Step = "method" | "pdf-upload" | "pdf-review" | "form";
+
+type PdfDebug = {
+  requestId?: string;
+  reason?: string;
+  step?: string;
+  fileName?: string | null;
+  fileType?: string | null;
+  fileSize?: number | null;
+  bufferLength?: number | null;
+  textLength?: number | null;
+  textPreview?: string | null;
+  parseError?: string | null;
+  itemsFound?: number | null;
+};
 
 type ItemForm = {
   cotacaoItemId: string;
@@ -83,6 +102,119 @@ function confidenceBadge(c: number) {
 
 const today = new Date().toISOString().slice(0, 10);
 
+// ── PdfErrorPanel ─────────────────────────────────────────────────────────────
+
+function PdfErrorPanel({
+  error,
+  debug,
+  rawText,
+  expanded,
+  onToggleExpand,
+  onUseManual,
+}: {
+  error: string;
+  debug: PdfDebug | null;
+  rawText: string;
+  expanded: boolean;
+  onToggleExpand: () => void;
+  onUseManual: () => void;
+}) {
+  const isSoftFallback = debug?.reason === "parser_no_items";
+  const borderCls = isSoftFallback ? "border-amber-200 bg-amber-50" : "border-red-200 bg-red-50";
+  const iconCls = isSoftFallback ? "text-amber-500" : "text-red-500";
+  const textCls = isSoftFallback ? "text-amber-800" : "text-red-800";
+
+  function copyDiag() {
+    const payload = {
+      requestId: debug?.requestId,
+      reason: debug?.reason,
+      step: debug?.step,
+      fileName: debug?.fileName,
+      fileType: debug?.fileType,
+      fileSize: debug?.fileSize,
+      bufferLength: debug?.bufferLength,
+      textLength: debug?.textLength,
+      parseError: debug?.parseError,
+      textPreview: debug?.textPreview?.slice(0, 500) ?? null,
+    };
+    navigator.clipboard.writeText(JSON.stringify(payload, null, 2)).catch(() => null);
+  }
+
+  return (
+    <div className={`rounded-lg border ${borderCls} px-4 py-3 text-sm ${textCls} space-y-3`}>
+      {/* User-facing message */}
+      <div className="flex items-start gap-2">
+        <AlertCircle className={`h-4 w-4 mt-0.5 shrink-0 ${iconCls}`} />
+        <span>{error}</span>
+      </div>
+
+      {/* Raw text fallback */}
+      {rawText && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold">Texto extraído do PDF (use como referência):</p>
+          <pre className="max-h-36 overflow-y-auto whitespace-pre-wrap rounded-md bg-white border border-amber-200 px-3 py-2 text-xs text-gray-700 font-mono">
+            {rawText.slice(0, 1500)}
+          </pre>
+          <button
+            onClick={onUseManual}
+            className="flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+          >
+            <FileText className="h-3.5 w-3.5" />
+            Preencher manualmente com este texto como apoio
+          </button>
+        </div>
+      )}
+
+      {/* Debug panel — always shown when SHOW_PDF_DEBUG=true, otherwise collapsible */}
+      {debug && (
+        <div>
+          <button
+            onClick={onToggleExpand}
+            className="flex items-center gap-1 text-xs font-medium opacity-70 hover:opacity-100"
+          >
+            {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            {SHOW_PDF_DEBUG ? "Diagnóstico técnico" : "Ver diagnóstico técnico"}
+          </button>
+
+          {(expanded || SHOW_PDF_DEBUG) && (
+            <div className="mt-2 space-y-2">
+              <div className="rounded-md bg-white border border-gray-200 px-3 py-2 font-mono text-xs text-gray-800 space-y-0.5">
+                {[
+                  ["requestId", debug.requestId],
+                  ["reason", debug.reason],
+                  ["step", debug.step],
+                  ["fileName", debug.fileName],
+                  ["fileType", debug.fileType],
+                  ["fileSize", debug.fileSize != null ? `${debug.fileSize} bytes` : null],
+                  ["bufferLength", debug.bufferLength != null ? `${debug.bufferLength} bytes` : null],
+                  ["textLength", debug.textLength],
+                  ["itemsFound", debug.itemsFound],
+                  ["parseError", debug.parseError],
+                  ["textPreview", debug.textPreview ? debug.textPreview.slice(0, 200) + "…" : null],
+                ]
+                  .filter(([, v]) => v != null)
+                  .map(([k, v]) => (
+                    <div key={k as string} className="flex gap-2">
+                      <span className="text-gray-400 shrink-0 w-28">{k as string}:</span>
+                      <span className="text-gray-700 break-all">{String(v)}</span>
+                    </div>
+                  ))}
+              </div>
+              <button
+                onClick={copyDiag}
+                className="flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+              >
+                <ClipboardCopy className="h-3.5 w-3.5" />
+                Copiar diagnóstico
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function InserirOrcamentoModal({
@@ -104,7 +236,9 @@ export function InserirOrcamentoModal({
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState("");
-  const [pdfRawText, setPdfRawText] = useState(""); // extracted text for manual fallback
+  const [pdfRawText, setPdfRawText] = useState("");
+  const [pdfDebug, setPdfDebug] = useState<PdfDebug | null>(null);
+  const [debugExpanded, setDebugExpanded] = useState(false);
 
   // PDF review state
   const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
@@ -224,6 +358,8 @@ export function InserirOrcamentoModal({
     setPdfLoading(true);
     setPdfError("");
     setPdfRawText("");
+    setPdfDebug(null);
+    setDebugExpanded(false);
     try {
       const fd = new FormData();
       fd.append("file", pdfFile);
@@ -232,27 +368,37 @@ export function InserirOrcamentoModal({
         method: "POST",
         body: fd,
       });
-      const data = await res.json();
 
-      // Hard failures (400/422/500) — show error, keep on upload step
+      // Always parse body — error responses also carry debug JSON
+      const data = await res.json().catch(() => null);
+
+      // Hard failures (400 / 422 / 500)
       if (!res.ok) {
-        setPdfError(data.error ?? "Erro ao processar PDF.");
+        console.error("[parse-pdf frontend error]", data);
+        const debug: PdfDebug = {
+          requestId: data?.requestId,
+          reason: data?.reason,
+          ...(data?.debug ?? {}),
+        };
+        setPdfDebug(debug);
+        setPdfError(data?.error ?? "Erro ao processar PDF.");
         return;
       }
 
       // Pre-fill frete if detected
-      if (data.freteDetectado != null && data.freteDetectado > 0) {
+      if (data?.freteDetectado != null && data.freteDetectado > 0) {
         setPdfGeneral((p) => ({ ...p, valorFrete: String(data.freteDetectado) }));
       }
 
-      // Soft fallback: PDF has text but parser found no priced items
-      if (data.requiresManualReview) {
+      // Soft fallback: text extracted but parser found no items
+      if (data?.requiresManualReview) {
         setPdfRawText(data.rawText ?? "");
+        setPdfDebug({ requestId: data.requestId, reason: data.reason, ...(data.debug ?? {}) });
         setPdfError(data.message ?? "Nenhum item identificado automaticamente. Confira o texto e preencha manualmente.");
-        return; // stays on pdf-upload step with rawText visible
+        return;
       }
 
-      const extracted: ExtractedItem[] = data.itens ?? [];
+      const extracted: ExtractedItem[] = data?.itens ?? [];
       setReviewItems(
         extracted.map((item, i) => ({
           id: `ri-${i}`,
@@ -269,7 +415,7 @@ export function InserirOrcamentoModal({
       );
       setStep("pdf-review");
     } catch {
-      setPdfError("Erro de comunicação. Tente novamente.");
+      setPdfError("Erro de comunicação com o servidor. Tente novamente.");
     } finally {
       setPdfLoading(false);
     }
@@ -435,27 +581,14 @@ export function InserirOrcamentoModal({
             </div>
 
             {pdfError && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
-                  <span>{pdfError}</span>
-                </div>
-                {pdfRawText && (
-                  <div className="mt-3 space-y-2">
-                    <p className="text-xs font-semibold text-amber-700">Texto extraído do PDF (use como referência):</p>
-                    <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap rounded-md bg-white border border-amber-200 px-3 py-2 text-xs text-gray-700 font-mono">
-                      {pdfRawText}
-                    </pre>
-                    <button
-                      onClick={() => setStep("form")}
-                      className="flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
-                    >
-                      <FileText className="h-3.5 w-3.5" />
-                      Preencher manualmente com este texto como apoio
-                    </button>
-                  </div>
-                )}
-              </div>
+              <PdfErrorPanel
+                error={pdfError}
+                debug={pdfDebug}
+                rawText={pdfRawText}
+                expanded={debugExpanded}
+                onToggleExpand={() => setDebugExpanded((v) => !v)}
+                onUseManual={() => setStep("form")}
+              />
             )}
           </div>
 

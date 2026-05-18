@@ -3,14 +3,15 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 export async function GET() {
-  // Test pdf-parse import
-  let pdfParseStatus = "unknown";
-  let pdfParseVersion = "unknown";
-  let pdfParseExportShape = "unknown";
+  const timestamp = new Date().toISOString();
+
+  // Test pdf-parse import and callability
+  let pdfParseStatus: string = "not_tested";
+  let pdfParseVersion: string = "unknown";
+  let pdfParseExportShape: string = "unknown";
 
   try {
     const mod = await import("pdf-parse");
-    pdfParseStatus = "imported_ok";
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const keys = Object.keys(mod as any);
     pdfParseExportShape = keys.join(", ");
@@ -20,11 +21,10 @@ export async function GET() {
       const pkg = require("pdf-parse/package.json");
       pdfParseVersion = pkg.version ?? "unknown";
     } catch {
-      pdfParseVersion = "package.json_not_readable";
+      pdfParseVersion = "package_json_unreadable";
     }
 
-    // Test with a minimal valid PDF buffer (a tiny but valid PDF)
-    // This verifies that pdfParse is callable and returns text
+    // Minimal valid PDF to verify the function is callable
     const tinyPdf = Buffer.from(
       "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj " +
       "2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj " +
@@ -33,7 +33,6 @@ export async function GET() {
       "0000000058 00000 n\n0000000115 00000 n\n" +
       "trailer<</Size 4/Root 1 0 R>>\nstartxref\n190\n%%EOF"
     );
-
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pdfParse = (mod as any).default ?? mod;
     await pdfParse(tinyPdf);
@@ -44,12 +43,12 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true,
-    timestamp: new Date().toISOString(),
+    timestamp,
     runtime: "nodejs",
     env: {
       NODE_ENV: process.env.NODE_ENV,
-      VERCEL: process.env.VERCEL,
-      VERCEL_ENV: process.env.VERCEL_ENV,
+      VERCEL: process.env.VERCEL ?? null,
+      VERCEL_ENV: process.env.VERCEL_ENV ?? null,
       VERCEL_GIT_COMMIT_SHA: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
       VERCEL_GIT_COMMIT_REF: process.env.VERCEL_GIT_COMMIT_REF ?? null,
       VERCEL_REGION: process.env.VERCEL_REGION ?? null,
@@ -59,16 +58,18 @@ export async function GET() {
       version: pdfParseVersion,
       exportShape: pdfParseExportShape,
     },
-    expectedBehavior: {
-      "422 reasons": [
-        "file_missing",
-        "wrong_mime_type",
+    endpoint: {
+      path: "/api/orcamentos/parse-pdf",
+      method: "POST",
+      expectedField: "file",
+      expectedMime: "application/pdf",
+      reasons422: [
         "empty_buffer",
         "pdf_parse_error",
-        "no_selectable_text (textLength < 30)",
+        "no_selectable_text",
       ],
-      "200 requiresManualReview=true": "text extracted, itens.length === 0",
-      "200 requiresManualReview=false": "itens found",
+      reasons400: ["file_missing", "wrong_mime_type", "form_parse_error"],
+      softFallback200: "parser_no_items → requiresManualReview=true",
     },
   });
 }
