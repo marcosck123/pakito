@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Menu, LogOut, ChevronDown, ShoppingCart } from "lucide-react";
 import type { User } from "@/types";
 import { roleLabels } from "@/lib/security/roles";
+import { useLogout } from "@/lib/hooks/use-logout";
 
 interface MobileTopbarProps {
   user: User;
@@ -12,14 +12,8 @@ interface MobileTopbarProps {
 }
 
 export function MobileTopbar({ user, onMenuClick }: MobileTopbarProps) {
-  const router = useRouter();
+  const logout = useLogout();
   const [open, setOpen] = useState(false);
-
-  async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-    router.refresh();
-  }
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-gray-200 bg-white px-4 lg:hidden">
@@ -55,7 +49,7 @@ export function MobileTopbar({ user, onMenuClick }: MobileTopbarProps) {
               <p className="text-xs text-gray-400">{user.email}</p>
             </div>
             <button
-              onClick={handleLogout}
+              onClick={logout}
               className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
             >
               <LogOut className="h-4 w-4" />

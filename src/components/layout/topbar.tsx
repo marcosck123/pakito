@@ -1,24 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { LogOut, ChevronDown } from "lucide-react";
 import type { User as UserType } from "@/types";
 import { roleLabels } from "@/lib/security/roles";
+import { useLogout } from "@/lib/hooks/use-logout";
 
 interface TopbarProps {
   user: UserType;
 }
 
 export function Topbar({ user }: TopbarProps) {
-  const router = useRouter();
+  const logout = useLogout();
   const [open, setOpen] = useState(false);
-
-  async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-    router.refresh();
-  }
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-6">
@@ -46,7 +40,7 @@ export function Topbar({ user }: TopbarProps) {
               <p className="text-xs font-medium text-gray-700">{user.setor}</p>
             </div>
             <button
-              onClick={handleLogout}
+              onClick={logout}
               className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
             >
               <LogOut className="h-4 w-4" />

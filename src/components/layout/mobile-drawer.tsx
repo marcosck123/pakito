@@ -3,34 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
-import {
-  X,
-  LayoutDashboard,
-  Store,
-  Package,
-  FileText,
-  DollarSign,
-  BarChart3,
-  ClipboardList,
-  CheckSquare,
-  Truck,
-  Settings,
-  ShoppingCart,
-} from "lucide-react";
+import { X, ShoppingCart } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const navItems = [
-  { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { title: "Fornecedores", href: "/fornecedores", icon: Store },
-  { title: "Peças", href: "/pecas", icon: Package },
-  { title: "Cotações", href: "/cotacoes", icon: FileText },
-  { title: "Orçamentos", href: "/orcamentos", icon: DollarSign },
-  { title: "Comparador", href: "/comparador", icon: BarChart3 },
-  { title: "Requisições", href: "/requisicoes", icon: ClipboardList },
-  { title: "Aprovação", href: "/aprovacao", icon: CheckSquare },
-  { title: "Recebimento", href: "/recebimento", icon: Truck },
-  { title: "Configurações", href: "/configuracoes", icon: Settings },
-];
+import { navItems } from "@/lib/nav-items";
 
 interface MobileDrawerProps {
   open: boolean;
@@ -41,11 +16,7 @@ export function MobileDrawer({ open, onClose }: MobileDrawerProps) {
   const pathname = usePathname();
 
   useEffect(() => {
-    if (open) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
+    document.body.style.overflow = open ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
@@ -55,10 +26,7 @@ export function MobileDrawer({ open, onClose }: MobileDrawerProps) {
 
   return (
     <div className="fixed inset-0 z-50 lg:hidden">
-      <div
-        className="absolute inset-0 bg-black/40"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
 
       <aside className="absolute left-0 top-0 h-full w-72 bg-white shadow-xl flex flex-col">
         <div className="flex h-16 items-center justify-between border-b border-gray-200 px-4">
@@ -69,10 +37,7 @@ export function MobileDrawer({ open, onClose }: MobileDrawerProps) {
               <p className="text-sm font-bold text-blue-600 leading-tight">Cotações</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100"
-          >
+          <button onClick={onClose} className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100">
             <X className="h-5 w-5" />
           </button>
         </div>

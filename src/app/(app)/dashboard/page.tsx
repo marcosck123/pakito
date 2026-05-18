@@ -55,6 +55,7 @@ export default async function DashboardPage() {
   const fornsSemResposta = mockCotacoes.flatMap((c) =>
     c.fornecedores.filter((f) => f.status === "AGUARDANDO_RESPOSTA" || f.status === "MENSAGEM_ENVIADA")
   );
+  const cotacaoById = new Map(mockCotacoes.map((c) => [c.id, c]));
 
   return (
     <div className="space-y-6">
@@ -132,10 +133,9 @@ export default async function DashboardPage() {
             <div className="px-4 py-8 text-center text-sm text-gray-400">Nenhum pendente</div>
           ) : (
             <>
-              {/* Cards no mobile */}
               <div className="divide-y divide-gray-50 sm:hidden">
                 {fornsSemResposta.map((fc) => {
-                  const cotacao = mockCotacoes.find((c) => c.id === fc.cotacaoId);
+                  const cotacao = cotacaoById.get(fc.cotacaoId);
                   return (
                     <div key={fc.id} className="px-4 py-3 space-y-1">
                       <div className="flex items-center justify-between gap-2">
@@ -150,7 +150,6 @@ export default async function DashboardPage() {
                   );
                 })}
               </div>
-              {/* Tabela no desktop */}
               <div className="hidden overflow-x-auto sm:block">
                 <table className="w-full text-sm">
                   <thead>
@@ -164,7 +163,7 @@ export default async function DashboardPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {fornsSemResposta.map((fc) => {
-                      const cotacao = mockCotacoes.find((c) => c.id === fc.cotacaoId);
+                      const cotacao = cotacaoById.get(fc.cotacaoId);
                       return (
                         <tr key={fc.id}>
                           <td className="px-4 py-2.5 font-medium text-gray-800">{fc.fornecedor?.nome}</td>

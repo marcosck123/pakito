@@ -2,23 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  FileText,
-  ClipboardList,
-  CheckSquare,
-  Truck,
-  MoreHorizontal,
-} from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const mainNavItems = [
-  { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { title: "Cotações", href: "/cotacoes", icon: FileText },
-  { title: "Requisições", href: "/requisicoes", icon: ClipboardList },
-  { title: "Aprovação", href: "/aprovacao", icon: CheckSquare },
-  { title: "Recebimento", href: "/recebimento", icon: Truck },
-];
+import { mobileNavItems } from "@/lib/nav-items";
 
 interface MobileNavProps {
   onMoreClick: () => void;
@@ -27,19 +13,13 @@ interface MobileNavProps {
 export function MobileNav({ onMoreClick }: MobileNavProps) {
   const pathname = usePathname();
 
-  const isMoreActive = ![
-    "/dashboard",
-    "/cotacoes",
-    "/requisicoes",
-    "/aprovacao",
-    "/recebimento",
-  ].some((href) =>
-    href === "/dashboard" ? pathname === href : pathname.startsWith(href)
+  const isMoreActive = !mobileNavItems.some((item) =>
+    item.href === "/dashboard" ? pathname === item.href : pathname.startsWith(item.href)
   );
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 flex h-16 border-t border-gray-200 bg-white lg:hidden">
-      {mainNavItems.map((item) => {
+      {mobileNavItems.map((item) => {
         const isActive =
           item.href === "/dashboard"
             ? pathname === "/dashboard"
