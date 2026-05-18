@@ -1,16 +1,24 @@
 import { NextResponse } from "next/server";
-import { extractTextFromPdf } from "@/lib/pdf/extract-text";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+// Minimal valid 1-page PDF for smoke-testing the extractor
+const TINY_PDF = Buffer.from(
+  "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj " +
+  "2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj " +
+  "3 0 obj<</Type/Page/MediaBox[0 0 3 3]>>endobj\n" +
+  "xref\n0 4\n0000000000 65535 f\n0000000009 00000 n\n" +
+  "0000000058 00000 n\n0000000115 00000 n\n" +
+  "trailer<</Size 4/Root 1 0 R>>\nstartxref\n190\n%%EOF"
+);
+
 export async function GET() {
   const timestamp = new Date().toISOString();
 
-  let pdfjsStatus: string = "not_tested";
-  let pdfjsVersion: string = "unknown";
-
+  // ── pdfjs-dist version ────────────────────────────────────────────────────
+  let pdfjsVersion = "unknown";
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const pkg = require("pdfjs-dist/package.json");
@@ -19,20 +27,26 @@ export async function GET() {
     pdfjsVersion = "package_json_unreadable";
   }
 
+  // ── pdfjs-dist callable test ──────────────────────────────────────────────
+  let pdfjsStatus = "not_tested";
+  let pdfjsError: string | null = null;
+
   try {
-    // Minimal valid PDF to verify extractTextFromPdf is callable
-    const tinyPdf = Buffer.from(
-      "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj " +
-      "2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj " +
-      "3 0 obj<</Type/Page/MediaBox[0 0 3 3]>>endobj\n" +
-      "xref\n0 4\n0000000000 65535 f\n0000000009 00000 n\n" +
-      "0000000058 00000 n\n0000000115 00000 n\n" +
-      "trailer<</Size 4/Root 1 0 R>>\nstartxref\n190\n%%EOF"
-    );
-    await extractTextFromPdf(tinyPdf);
+    // Dynamic import: if pdfjs-dist fails to initialize it throws here, not at module load
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs") as any;
+
+    const loadingTask = pdfjsLib.getDocument({
+      data: new Uint8Array(TINY_PDF),
+      disableFontFace: true,
+      useSystemFonts: true,
+      disableWorker: true,
+    });
+    await loadingTask.promise;
     pdfjsStatus = "callable_ok";
   } catch (err) {
-    pdfjsStatus = `error: ${err instanceof Error ? err.message : String(err)}`;
+    pdfjsStatus = "import_error";
+    pdfjsError = err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err);
   }
 
   return NextResponse.json(
@@ -40,6 +54,7 @@ export async function GET() {
       ok: true,
       timestamp,
       runtime: "nodejs",
+      nodeVersion: process.version,
       env: {
         NODE_ENV: process.env.NODE_ENV,
         VERCEL: process.env.VERCEL ?? null,
@@ -51,17 +66,14 @@ export async function GET() {
       pdfjs: {
         status: pdfjsStatus,
         version: pdfjsVersion,
+        error: pdfjsError,
       },
       endpoint: {
         path: "/api/orcamentos/parse-pdf",
         method: "POST",
         expectedField: "file",
         expectedMime: "application/pdf",
-        reasons422: [
-          "empty_buffer",
-          "pdf_parse_error",
-          "no_selectable_text",
-        ],
+        reasons422: ["empty_buffer", "pdf_parse_error", "no_selectable_text"],
         reasons400: ["file_missing", "wrong_mime_type", "form_parse_error"],
         softFallback200: "parser_no_items → requiresManualReview=true",
       },
