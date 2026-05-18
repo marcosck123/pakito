@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { updateItemEntrega } from "@/lib/mock-data/requisicoes";
-import type { ItemEntregaStatus, CondicaoPeca } from "@/types";
+import type { RequisicaoItem, ItemEntregaStatus, CondicaoPeca } from "@/types";
 
 export async function PATCH(request: Request) {
   const body = await request.json() as {
@@ -14,32 +14,27 @@ export async function PATCH(request: Request) {
   };
 
   const today = new Date().toISOString();
-
-  let statusEntrega: ItemEntregaStatus;
-  let update: Record<string, unknown>;
+  let update: Partial<RequisicaoItem>;
 
   if (body.action === "RECEBIDA") {
-    statusEntrega = "RECEBIDA";
     update = {
-      statusEntrega,
+      statusEntrega: "RECEBIDA" as ItemEntregaStatus,
       quantidadeRecebida: body.quantidadeRecebida,
       dataRecebimento: today,
       quemRecebeu: body.quemRecebeu,
-      condicaoPeca: "OK" as CondicaoPeca,
+      condicaoPeca: "OK",
     };
   } else if (body.action === "PARCIAL") {
-    statusEntrega = "RECEBIDA_PARCIALMENTE";
     update = {
-      statusEntrega,
+      statusEntrega: "RECEBIDA_PARCIALMENTE" as ItemEntregaStatus,
       quantidadeRecebida: body.quantidadeRecebida ?? 0,
       dataRecebimento: today,
       quemRecebeu: body.quemRecebeu,
       observacaoRecebimento: body.observacao,
     };
   } else {
-    statusEntrega = "COM_PROBLEMA";
     update = {
-      statusEntrega,
+      statusEntrega: "COM_PROBLEMA" as ItemEntregaStatus,
       dataRecebimento: today,
       quemRecebeu: body.quemRecebeu,
       condicaoPeca: body.condicao ?? "DANIFICADA",
@@ -47,7 +42,7 @@ export async function PATCH(request: Request) {
     };
   }
 
-  const ok = updateItemEntrega(body.requisicaoId, body.itemId, update as never);
+  const ok = updateItemEntrega(body.requisicaoId, body.itemId, update);
   if (!ok) return NextResponse.json({ error: "Item não encontrado" }, { status: 404 });
 
   return NextResponse.json({ ok: true });

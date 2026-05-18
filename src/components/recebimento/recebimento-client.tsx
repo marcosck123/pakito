@@ -7,7 +7,7 @@ import { CheckCircle, X, AlertTriangle } from "lucide-react";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   itemEntregaStatusLabel, itemEntregaStatusColor,
-  urgenciaLabel, urgenciaColor,
+  urgenciaLabel,
 } from "@/lib/utils/status";
 import { formatDate, formatCurrency } from "@/lib/utils/format";
 import type { CondicaoPeca, ItemEntregaStatus } from "@/types";
