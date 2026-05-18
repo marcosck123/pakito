@@ -6,6 +6,6 @@ interface Props {
 
 export default async function RequisicoesNovaPage({ searchParams }: Props) {
   const { cotacao } = await searchParams;
-  if (cotacao) redirect(`/cotacoes/${cotacao}`);
+  if (cotacao) redirect(`/cotacoes/${cotacao}?criar=1#requisicao`);
   redirect("/requisicoes");
 }

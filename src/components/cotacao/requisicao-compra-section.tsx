@@ -216,6 +216,7 @@ interface Props {
   cotacaoCodigo: string;
   userName: string;
   initialRequisition: PurchaseRequisition | null;
+  autoOpen?: boolean;
 }
 
 export function RequisicaoCompraSection({
@@ -223,9 +224,12 @@ export function RequisicaoCompraSection({
   cotacaoCodigo,
   userName,
   initialRequisition,
+  autoOpen = false,
 }: Props) {
   const [saved, setSaved] = useState<PurchaseRequisition | null>(initialRequisition);
-  const [mode, setMode] = useState<"view" | "form">("view");
+  const [mode, setMode] = useState<"view" | "form">(() =>
+    autoOpen && !initialRequisition ? "form" : "view"
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
