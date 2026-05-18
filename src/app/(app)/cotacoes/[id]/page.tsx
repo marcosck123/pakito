@@ -34,24 +34,32 @@ export default async function CotacaoDetalhePage({ params, searchParams }: Props
   const orcamentos = mockOrcamentos.filter((o) => o.cotacaoId === id);
   const purchaseRequisition = findByCotacaoId(id);
 
-  const bestByItem = new Map<string, { valorUnitario: number; marca: string }>();
+  const bestByItem = new Map<string, { valorUnitario: number; marca: string; fornecedor: string }>();
   for (const orc of orcamentos) {
     for (const oi of orc.itens) {
       if (!oi.disponivel) continue;
       const existing = bestByItem.get(oi.cotacaoItemId);
       if (!existing || oi.valorUnitario < existing.valorUnitario) {
-        bestByItem.set(oi.cotacaoItemId, { valorUnitario: oi.valorUnitario, marca: oi.marcaCotada ?? "" });
+        bestByItem.set(oi.cotacaoItemId, {
+          valorUnitario: oi.valorUnitario,
+          marca: oi.marcaCotada ?? "",
+          fornecedor: orc.fornecedor?.nome ?? "",
+        });
       }
     }
   }
   const suggestedItems: PurchaseRequisitionItem[] = cotacao.itens.map((ci, i) => {
     const best = bestByItem.get(ci.id);
+    const parts = [
+      best?.fornecedor ? best.fornecedor : null,
+      best?.marca ? `Marca: ${best.marca}` : null,
+    ].filter(Boolean);
     return {
       id: `s${i}`,
       peca: ci.peca?.nome ?? "",
       quantidade: ci.quantidade,
       valorUnitario: best?.valorUnitario ?? 0,
-      observacao: best?.marca ? `Marca: ${best.marca}` : "",
+      observacao: parts.join(" · "),
     };
   });
 
