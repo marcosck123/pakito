@@ -132,6 +132,7 @@ export interface Cotacao {
 // ===== ORÇAMENTO =====
 
 export type OrcamentoStatus =
+  | "EM_PREENCHIMENTO"
   | "RECEBIDO"
   | "PENDENTE_CONFERENCIA"
   | "CONFERIDO"

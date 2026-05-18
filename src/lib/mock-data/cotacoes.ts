@@ -208,3 +208,19 @@ export const mockCotacoes: Cotacao[] = [
     atualizadoEm: "2025-05-17T10:00:00Z",
   },
 ];
+
+import type { FornecedorCotacaoStatus } from "@/types";
+
+export function updateFornecedorCotacaoStatus(
+  cotacaoId: string,
+  fornecedorCotacaoId: string,
+  status: FornecedorCotacaoStatus
+): boolean {
+  const cotacao = mockCotacoes.find((c) => c.id === cotacaoId);
+  if (!cotacao) return false;
+  const fc = cotacao.fornecedores.find((f) => f.id === fornecedorCotacaoId);
+  if (!fc) return false;
+  fc.status = status;
+  fc.respostaRecebidaEm = new Date().toISOString();
+  return true;
+}

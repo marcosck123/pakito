@@ -182,3 +182,20 @@ export const mockOrcamentos: Orcamento[] = [
     criadoEm: "2025-05-11T09:00:00Z",
   },
 ];
+
+export function addOrcamento(data: Omit<Orcamento, "id" | "criadoEm">): Orcamento {
+  const orc: Orcamento = { ...data, id: `o${Date.now()}`, criadoEm: new Date().toISOString() };
+  mockOrcamentos.push(orc);
+  return orc;
+}
+
+export function updateOrcamento(id: string, data: Partial<Orcamento>): Orcamento | null {
+  const idx = mockOrcamentos.findIndex((o) => o.id === id);
+  if (idx < 0) return null;
+  mockOrcamentos[idx] = { ...mockOrcamentos[idx], ...data };
+  return mockOrcamentos[idx];
+}
+
+export function findByCotacaoAndFornecedor(cotacaoId: string, fornecedorId: string): Orcamento | null {
+  return mockOrcamentos.find((o) => o.cotacaoId === cotacaoId && o.fornecedorId === fornecedorId) ?? null;
+}

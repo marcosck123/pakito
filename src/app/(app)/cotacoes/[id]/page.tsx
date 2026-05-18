@@ -14,7 +14,9 @@ import {
 import { formatDate, formatCurrency } from "@/lib/utils/format";
 import { canDo } from "@/lib/security/permissions";
 import { RequisicaoCompraSection } from "@/components/cotacao/requisicao-compra-section";
-import type { PurchaseRequisitionItem } from "@/types";
+import { FornecedoresSection } from "@/components/cotacao/fornecedores-section";
+import { findByCotacaoAndFornecedor } from "@/lib/mock-data/orcamentos";
+import type { PurchaseRequisitionItem, Orcamento } from "@/types";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -33,6 +35,12 @@ export default async function CotacaoDetalhePage({ params, searchParams }: Props
 
   const orcamentos = mockOrcamentos.filter((o) => o.cotacaoId === id);
   const purchaseRequisition = findByCotacaoId(id);
+
+  const existingOrcamentos: Record<string, Orcamento> = {};
+  for (const fc of cotacao.fornecedores) {
+    const orc = findByCotacaoAndFornecedor(id, fc.fornecedorId);
+    if (orc) existingOrcamentos[fc.fornecedorId] = orc;
+  }
 
   const bestByItem = new Map<string, { valorUnitario: number; marca: string; fornecedor: string }>();
   for (const orc of orcamentos) {
@@ -124,36 +132,13 @@ export default async function CotacaoDetalhePage({ params, searchParams }: Props
           </div>
         </div>
 
-        <div className="rounded-lg border border-gray-200 bg-white">
-          <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-            <h2 className="text-sm font-semibold text-gray-800">Fornecedores ({cotacao.fornecedores.length})</h2>
-            {perms.adicionarFornecedorCotacao && <button className="text-xs text-blue-600 hover:underline">+ Adicionar</button>}
-          </div>
-          <div className="divide-y divide-gray-50">
-            {cotacao.fornecedores.map((fc) => (
-              <div key={fc.id} className="px-4 py-3">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{fc.fornecedor?.nome}</p>
-                    <p className="text-xs text-gray-400">
-                      {fc.mensagemEnviadaEm ? `Enviado: ${formatDate(fc.mensagemEnviadaEm)}` : "Não enviado"}
-                      {fc.respostaRecebidaEm && ` · Resposta: ${formatDate(fc.respostaRecebidaEm)}`}
-                    </p>
-                  </div>
-                  <StatusBadge label={fornecedorCotacaoStatusLabel[fc.status]} colorClass={fornecedorCotacaoStatusColor[fc.status]} />
-                </div>
-                {fc.fornecedor?.whatsapp && perms.adicionarOrcamento && (
-                  <div className="mt-2 flex gap-2">
-                    <a href={`https://wa.me/${fc.fornecedor.whatsapp}`} target="_blank" rel="noopener noreferrer" className="rounded bg-green-50 px-2 py-0.5 text-xs text-green-700 hover:bg-green-100">Abrir WA</a>
-                    {fc.status !== "ORCAMENTO_CADASTRADO" && (
-                      <button className="rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-700 hover:bg-blue-100">Cadastrar orçamento</button>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+        <FornecedoresSection
+          cotacaoId={id}
+          fornecedores={cotacao.fornecedores}
+          cotacaoItens={cotacao.itens}
+          existingOrcamentos={existingOrcamentos}
+          canInsert={perms.adicionarOrcamento}
+        />
       </div>
 
       {perms.gerarRequisicao && (
