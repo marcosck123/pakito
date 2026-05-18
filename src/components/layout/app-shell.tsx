@@ -18,26 +18,26 @@ export function AppShell({ user, children }: AppShellProps) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
-      {/* Sidebar — desktop only */}
-      <div className="hidden md:flex">
+      {/* Sidebar — somente em telas lg+ (1024px) */}
+      <div className="hidden lg:flex">
         <Sidebar />
       </div>
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Topbar — desktop only */}
-        <div className="hidden md:block">
+        {/* Topbar — somente em telas lg+ */}
+        <div className="hidden lg:block">
           <Topbar user={user} />
         </div>
 
-        {/* Header mobile */}
+        {/* Header mobile (até lg) */}
         <MobileTopbar user={user} onMenuClick={() => setDrawerOpen(true)} />
 
         {/* Conteúdo principal */}
-        <main className="flex-1 overflow-y-auto p-4 pb-20 md:p-6 md:pb-6">
+        <main className="flex-1 overflow-y-auto p-4 pb-20 lg:p-6 lg:pb-6">
           {children}
         </main>
 
-        {/* Navegação inferior mobile */}
+        {/* Navegação inferior mobile (até lg) */}
         <MobileNav onMoreClick={() => setDrawerOpen(true)} />
       </div>
 

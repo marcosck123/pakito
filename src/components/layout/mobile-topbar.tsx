@@ -22,7 +22,7 @@ export function MobileTopbar({ user, onMenuClick }: MobileTopbarProps) {
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-gray-200 bg-white px-4 md:hidden">
+    <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-gray-200 bg-white px-4 lg:hidden">
       <button
         onClick={onMenuClick}
         className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100"

@@ -38,7 +38,7 @@ export function MobileNav({ onMoreClick }: MobileNavProps) {
   );
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 flex h-16 border-t border-gray-200 bg-white md:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 flex h-16 border-t border-gray-200 bg-white lg:hidden">
       {mainNavItems.map((item) => {
         const isActive =
           item.href === "/dashboard"
