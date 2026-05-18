@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { extractTextFromPdf } from "@/lib/pdf/extract-text";
 import { setupPdfJsNodePolyfills } from "@/lib/pdf/pdfjs-polyfill";
 
 export const runtime = "nodejs";
@@ -27,25 +28,18 @@ export async function GET() {
     pdfjsVersion = "package_json_unreadable";
   }
 
-  // ── polyfill + callable test ──────────────────────────────────────────────
+  // ── callable test via the real extraction path ────────────────────────────
   let pdfjsStatus = "not_tested";
   let pdfjsError: string | null = null;
   let polyfillApplied = false;
 
   try {
+    // Apply polyfill first so we can report whether it was needed
     await setupPdfJsNodePolyfills();
     polyfillApplied = typeof globalThis.DOMMatrix !== "undefined";
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs") as any;
-
-    const loadingTask = pdfjsLib.getDocument({
-      data: new Uint8Array(TINY_PDF),
-      disableFontFace: true,
-      useSystemFonts: true,
-      disableWorker: true,
-    });
-    await loadingTask.promise;
+    // Use the same function the parse-pdf endpoint uses — tests the full path
+    await extractTextFromPdf(TINY_PDF);
     pdfjsStatus = "callable_ok";
   } catch (err) {
     pdfjsStatus = "import_error";
