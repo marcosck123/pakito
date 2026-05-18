@@ -1,4 +1,4 @@
-import type { Requisicao } from "@/types";
+import type { Requisicao, RequisicaoItem } from "@/types";
 import { mockPecas } from "./pecas";
 import { mockFornecedores } from "./fornecedores";
 import { mockUsers } from "./users";
@@ -248,3 +248,20 @@ export const mockRequisicoes: Requisicao[] = [
     atualizadoEm: "2025-05-14T10:30:00Z",
   },
 ];
+export function updateItemEntrega(
+  requisicaoId: string,
+  itemId: string,
+  update: Partial<RequisicaoItem>
+): boolean {
+  const req = mockRequisicoes.find((r) => r.id === requisicaoId);
+  if (!req) return false;
+  const item = req.itens.find((i) => i.id === itemId);
+  if (!item) return false;
+  Object.assign(item, update);
+  const all = req.itens.every((i) => i.statusEntrega === "RECEBIDA");
+  const any = req.itens.some((i) => ["RECEBIDA", "RECEBIDA_PARCIALMENTE"].includes(i.statusEntrega));
+  if (all) req.status = "RECEBIDA";
+  else if (any) req.status = "PARCIALMENTE_RECEBIDA";
+  req.atualizadoEm = new Date().toISOString();
+  return true;
+}
