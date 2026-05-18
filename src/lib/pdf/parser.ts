@@ -1,6 +1,8 @@
 export interface ExtractedItem {
+  codigo?: string;
   linhaOriginal: string;
   nomeExtraido: string;
+  marca?: string;
   quantidade: number | null;
   valorUnitario: number | null;
   valorTotal: number | null;
@@ -12,6 +14,11 @@ export interface ExtractedItem {
 export interface ParsedPdf {
   itens: ExtractedItem[];
   freteDetectado: number | null;
+  debugParser?: {
+    normalizedLength: number;
+    mainTextPreview: string;
+    itemsFound: number;
+  };
 }
 
 interface CotacaoItemSimple {
@@ -38,50 +45,82 @@ const QTY_UNIT_RE =
 
 // Leading product code (e.g. FO-889, CR-22A, OLEO15W)
 const CODE_PREFIX_RE = /^[A-Z0-9]{1,6}[-/]?[A-Z0-9]{1,8}\s*/;
+const MONEY_RE =
+  /(?:R\$\s*)?(?:\d{1,3}(?:\.\d{3})+,\d{2}|\d+,\d{2}|\d+\.\d{2})/gi;
+const MONEY_SOURCE =
+  "(?:R\\$\\s*)?(?:\\d{1,3}(?:\\.\\d{3})+,\\d{2}|\\d+,\\d{2}|\\d+\\.\\d{2})";
+const BRAND_TOKEN_SOURCE = "[^\\s]+";
+const CONTINUOUS_ROW_RE = new RegExp(
+  "\\b(\\d{1,3})\\s+(.+?)\\s+(" +
+    BRAND_TOKEN_SOURCE +
+    ")\\s+(\\d+(?:[,.]\\d+)?)\\s+(" +
+    MONEY_SOURCE +
+    ")\\s+(" +
+    MONEY_SOURCE +
+    ")",
+  "giu"
+);
+const TABLE_HEADER_RE =
+  /[\s\S]*?\bItem\s+Descri[cç][aã]o(?:\s+da\s+pe[cç]a)?\s+Marca\s+Qtd\s+Valor\s+unit\.?(?:ario)?\s+Valor\s+total/i;
+const TABLE_STOP_RE = /\b(?:OPCIONAIS?|Frete:?|Desconto:?|Total\b|Prazo:?)\b/i;
 
 // ─── BRL helpers ─────────────────────────────────────────────────────────────
 
+function normalizePdfText(text: string) {
+  return text
+    .replace(/\u00A0/g, " ")
+    .replace(/\r/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{2,}/g, "\n")
+    .trim();
+}
+
+function parseMoneyBR(value: string) {
+  const cleaned = value
+    .replace(/R\$/gi, "")
+    .replace(/\s/g, "")
+    .trim();
+
+  if (cleaned.includes(",")) {
+    return Number(cleaned.replace(/\./g, "").replace(",", "."));
+  }
+
+  return Number(cleaned);
+}
+
 function parseBRL(s: string): number | null {
-  const clean = s.replace(/R\$\s*/i, "").trim();
-  // 1.234,56
-  if (/^\d{1,3}(\.\d{3})*,\d{2}$/.test(clean))
-    return parseFloat(clean.replace(/\./g, "").replace(",", "."));
-  // 45,00
-  if (/^\d+,\d{2}$/.test(clean)) return parseFloat(clean.replace(",", "."));
-  return null;
+  const value = parseMoneyBR(s);
+  return Number.isFinite(value) ? value : null;
 }
 
 /** Extract all BRL prices from a line, handling R$-prefixed and bare formats.
  *  Filters out "concatenated" prices like "1120,00" when an R$-prefixed "120,00" exists. */
 function extractPrices(line: string): number[] {
-  // Step 1: R$-prefixed prices — most reliable
-  const rsPriceRe = /R\$\s*(\d{1,3}(?:\.\d{3})*,\d{2})/g;
-  const rsPrices: Array<{ value: number; str: string }> = [];
-  for (const m of line.matchAll(rsPriceRe)) {
-    const v = parseBRL(m[1]);
-    if (v !== null && v > 0) rsPrices.push({ value: v, str: m[1] });
-  }
+  const flexibleMatches = [...line.matchAll(MONEY_RE)].map((m) => {
+    const raw = m[0];
+    const clean = raw.replace(/R\$\s*/i, "");
+    const value = parseBRL(raw);
+    return { raw, clean, value, prefixed: /^R\$/i.test(raw.trim()) };
+  });
 
-  // Step 2: Bare BRL prices from a copy of the line with R$-blocks removed
-  const bareSearch = line.replace(/R\$\s*\d{1,3}(?:\.\d{3})*,\d{2}/g, (m) =>
-    " ".repeat(m.length)
-  );
-  const barePriceRe = /\d{1,3}(?:\.\d{3})*,\d{2}/g;
-  const barePrices: number[] = [];
-  for (const m of bareSearch.matchAll(barePriceRe)) {
-    const v = parseBRL(m[0]);
-    if (v === null || v <= 0) continue;
-    // Reject if this looks like qty-concatenated with an R$ price
-    // e.g. "1120,00" ends with "120,00" (the R$ price) and is longer → concatenation
-    const str = m[0];
-    const isConcatenation = rsPrices.some(
-      (r) => str !== r.str && str.endsWith(r.str) && str.length > r.str.length
-    );
-    if (!isConcatenation) barePrices.push(v);
+  if (flexibleMatches.length > 0) {
+    const prefixed = flexibleMatches.filter((m) => m.prefixed);
+    return flexibleMatches
+      .filter((match) => {
+        if (match.value === null || match.value <= 0) return false;
+        return !(
+          !match.prefixed &&
+          prefixed.some(
+            (r) =>
+              match.clean !== r.clean &&
+              match.clean.endsWith(r.clean) &&
+              match.clean.length > r.clean.length
+          )
+        );
+      })
+      .map((match) => match.value as number);
   }
-
-  // Combine; keep duplicates (identical unit=total means qty=1)
-  return [...rsPrices.map((r) => r.value), ...barePrices];
+  return [];
 }
 
 // ─── Quantity + price inference ───────────────────────────────────────────────
@@ -167,9 +206,9 @@ function inferPrices(
 function buildDescription(line: string): string {
   let desc = line;
   // Remove R$ blocks
-  desc = desc.replace(/R\$\s*\d{1,3}(?:\.\d{3})*,\d{2}/gi, " ");
+  desc = desc.replace(MONEY_RE, " ");
   // Remove bare BRL numbers
-  desc = desc.replace(/\b\d{1,3}(?:\.\d{3})*,\d{2}\b/g, " ");
+  desc = desc.replace(MONEY_RE, " ");
   // Remove R$ symbol
   desc = desc.replace(/R\$/gi, " ");
   // Remove leading product code
@@ -223,26 +262,193 @@ function matchPeca(desc: string, cotacaoItens: CotacaoItemSimple[]) {
   return { pecaSugeridaId, pecaSugeridaNome };
 }
 
+function extractMainTableText(normalizedText: string): string {
+  const headerMatch = normalizedText.match(TABLE_HEADER_RE);
+  let mainText = headerMatch
+    ? normalizedText.slice(headerMatch[0].length)
+    : normalizedText;
+
+  const stopMatch = mainText.search(TABLE_STOP_RE);
+  if (stopMatch > -1) {
+    mainText = mainText.slice(0, stopMatch);
+  }
+
+  return mainText.trim();
+}
+
+function parseQuantity(value: string): number | null {
+  const quantity = Number(value.replace(",", "."));
+  return Number.isFinite(quantity) && quantity > 0 ? quantity : null;
+}
+
+function confidenceForRow(
+  quantidade: number | null,
+  valorUnitario: number | null,
+  valorTotal: number | null
+): number {
+  let confianca = 0.55;
+
+  if (quantidade !== null) confianca += 0.15;
+  if (valorUnitario !== null) confianca += 0.15;
+  if (valorTotal !== null) confianca += 0.15;
+
+  if (quantidade !== null && valorUnitario !== null && valorTotal !== null) {
+    const computed = Math.round(quantidade * valorUnitario * 100) / 100;
+    const diff = Math.abs(computed - valorTotal);
+
+    if (diff < 0.02) return 1;
+    if (diff < 0.5) confianca = Math.max(confianca, 0.85);
+  }
+
+  return Math.min(1, Math.round(confianca * 100) / 100);
+}
+
+function buildContinuousItem(
+  row: {
+    codigo: string;
+    descricao: string;
+    marca: string;
+    quantidadeRaw: string;
+    valorUnitarioRaw: string;
+    valorTotalRaw: string;
+    linhaOriginal: string;
+  },
+  cotacaoItens: CotacaoItemSimple[]
+): ExtractedItem | null {
+  const quantidade = parseQuantity(row.quantidadeRaw);
+  const valorUnitario = parseBRL(row.valorUnitarioRaw);
+  const valorTotal = parseBRL(row.valorTotalRaw);
+  const nomeExtraido = row.descricao.replace(/\s+/g, " ").trim();
+  const marca = row.marca.replace(/\s+/g, " ").trim();
+
+  if (!nomeExtraido || quantidade === null || valorUnitario === null || valorTotal === null) {
+    return null;
+  }
+
+  const { pecaSugeridaId, pecaSugeridaNome } = matchPeca(nomeExtraido, cotacaoItens);
+  const confianca = confidenceForRow(quantidade, valorUnitario, valorTotal);
+
+  return {
+    codigo: row.codigo,
+    linhaOriginal: row.linhaOriginal.replace(/\s+/g, " ").trim(),
+    nomeExtraido,
+    marca,
+    quantidade,
+    valorUnitario,
+    valorTotal,
+    confianca: pecaSugeridaId ? Math.min(1, confianca + 0.1) : confianca,
+    pecaSugeridaId,
+    pecaSugeridaNome,
+  };
+}
+
+function parseContinuousItems(
+  mainText: string,
+  cotacaoItens: CotacaoItemSimple[]
+): ExtractedItem[] {
+  const itens: ExtractedItem[] = [];
+  CONTINUOUS_ROW_RE.lastIndex = 0;
+
+  for (const match of mainText.matchAll(CONTINUOUS_ROW_RE)) {
+    const item = buildContinuousItem(
+      {
+        codigo: match[1],
+        descricao: match[2],
+        marca: match[3],
+        quantidadeRaw: match[4],
+        valorUnitarioRaw: match[5],
+        valorTotalRaw: match[6],
+        linhaOriginal: match[0],
+      },
+      cotacaoItens
+    );
+
+    if (item) itens.push(item);
+  }
+
+  if (itens.length > 0) return itens;
+
+  const chunkRegex = new RegExp(
+    "^\\s*(\\d{1,3})\\s+(.+?)\\s+(" +
+      BRAND_TOKEN_SOURCE +
+      ")\\s+(\\d+(?:[,.]\\d+)?)\\s+(" +
+      MONEY_SOURCE +
+      ")\\s+(" +
+      MONEY_SOURCE +
+      ")\\s*$",
+    "iu"
+  );
+
+  const chunks = mainText
+    .split(/(?=\b\d{2,3}\s+[A-Za-zÀ-ÿ])/u)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  for (const chunk of chunks) {
+    const match = chunk.match(chunkRegex);
+    if (!match) continue;
+
+    const item = buildContinuousItem(
+      {
+        codigo: match[1],
+        descricao: match[2],
+        marca: match[3],
+        quantidadeRaw: match[4],
+        valorUnitarioRaw: match[5],
+        valorTotalRaw: match[6],
+        linhaOriginal: chunk,
+      },
+      cotacaoItens
+    );
+
+    if (item) itens.push(item);
+  }
+
+  return itens;
+}
+
+function detectFreteValue(normalizedText: string, lines: string[]): number | null {
+  const freteRegex = new RegExp("\\bfrete\\b[^\\n]{0,80}?(" + MONEY_SOURCE + ")", "iu");
+  const match = normalizedText.match(freteRegex);
+  if (match) {
+    const value = parseBRL(match[1]);
+    if (value !== null && value > 0) return value;
+  }
+
+  for (const line of lines) {
+    if (!FRETE_LINE_RE.test(line)) continue;
+    const prices = extractPrices(line);
+    if (prices.length > 0 && prices[0] > 0) {
+      return Math.min(...prices.filter((v) => v > 0));
+    }
+  }
+
+  return null;
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 
 export function parseOrcamentoPdf(
   text: string,
   cotacaoItens: CotacaoItemSimple[]
 ): ParsedPdf {
-  const lines = text
+  const normalizedText = normalizePdfText(text);
+  const mainText = extractMainTableText(normalizedText);
+  const lines = normalizedText
     .split("\n")
     .map((l) => l.trim())
     .filter((l) => l.length > 4);
 
-  // Detect frete (separate pass before item loop)
-  let freteDetectado: number | null = null;
-  for (const line of lines) {
-    if (!FRETE_LINE_RE.test(line)) continue;
-    const prices = extractPrices(line);
-    if (prices.length > 0 && prices[0] > 0) {
-      freteDetectado = Math.min(...prices.filter((v) => v > 0));
-      break;
-    }
+  const freteDetectado = detectFreteValue(normalizedText, lines);
+  const continuousItems = parseContinuousItems(mainText, cotacaoItens);
+  const debugParser = {
+    normalizedLength: normalizedText.length,
+    mainTextPreview: mainText.slice(0, 500),
+    itemsFound: continuousItems.length,
+  };
+
+  if (continuousItems.length > 0) {
+    return { itens: continuousItems, freteDetectado, debugParser };
   }
 
   const itens: ExtractedItem[] = [];
@@ -255,8 +461,7 @@ export function parseOrcamentoPdf(
 
     // Skip lines where removing prices leaves almost nothing (pure summary)
     const textOnly = line
-      .replace(/R\$\s*\d{1,3}(?:\.\d{3})*,\d{2}/gi, "")
-      .replace(/\d{1,3}(?:\.\d{3})*,\d{2}/g, "")
+      .replace(MONEY_RE, "")
       .replace(/R\$/gi, "")
       .trim();
     if (textOnly.length < 4) continue;
@@ -299,5 +504,12 @@ export function parseOrcamentoPdf(
     });
   }
 
-  return { itens, freteDetectado };
+  return {
+    itens,
+    freteDetectado,
+    debugParser: {
+      ...debugParser,
+      itemsFound: itens.length,
+    },
+  };
 }
