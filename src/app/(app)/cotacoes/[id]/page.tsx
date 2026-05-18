@@ -14,6 +14,7 @@ import {
 import { formatDate, formatCurrency } from "@/lib/utils/format";
 import { canDo } from "@/lib/security/permissions";
 import { RequisicaoCompraSection } from "@/components/cotacao/requisicao-compra-section";
+import type { PurchaseRequisitionItem } from "@/types";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -32,6 +33,35 @@ export default async function CotacaoDetalhePage({ params, searchParams }: Props
 
   const orcamentos = mockOrcamentos.filter((o) => o.cotacaoId === id);
   const purchaseRequisition = findByCotacaoId(id);
+
+  const bestByItem = new Map<string, { valorUnitario: number; marca: string; fornecedor: string }>();
+  for (const orc of orcamentos) {
+    for (const oi of orc.itens) {
+      if (!oi.disponivel) continue;
+      const existing = bestByItem.get(oi.cotacaoItemId);
+      if (!existing || oi.valorUnitario < existing.valorUnitario) {
+        bestByItem.set(oi.cotacaoItemId, {
+          valorUnitario: oi.valorUnitario,
+          marca: oi.marcaCotada ?? "",
+          fornecedor: orc.fornecedor?.nome ?? "",
+        });
+      }
+    }
+  }
+  const suggestedItems: PurchaseRequisitionItem[] = cotacao.itens.map((ci, i) => {
+    const best = bestByItem.get(ci.id);
+    const parts = [
+      best?.fornecedor ? best.fornecedor : null,
+      best?.marca ? `Marca: ${best.marca}` : null,
+    ].filter(Boolean);
+    return {
+      id: `s${i}`,
+      peca: ci.peca?.nome ?? "",
+      quantidade: ci.quantidade,
+      valorUnitario: best?.valorUnitario ?? 0,
+      observacao: parts.join(" · "),
+    };
+  });
 
   return (
     <div className="space-y-6">
@@ -125,6 +155,7 @@ export default async function CotacaoDetalhePage({ params, searchParams }: Props
             userName={user.nome}
             initialRequisition={purchaseRequisition}
             autoOpen={criar === "1"}
+            suggestedItems={suggestedItems}
           />
         </div>
       )}
