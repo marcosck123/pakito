@@ -9,6 +9,7 @@ import {
   CheckSquare,
   Truck,
   Settings,
+  ScrollText,
 } from "lucide-react";
 
 export const navItems = [
@@ -21,6 +22,7 @@ export const navItems = [
   { title: "Requisições", href: "/requisicoes", icon: ClipboardList },
   { title: "Aprovação", href: "/aprovacao", icon: CheckSquare },
   { title: "Recebimento", href: "/recebimento", icon: Truck },
+  { title: "Ficha de Cotação", href: "/ficha-cotacao", icon: ScrollText },
   { title: "Configurações", href: "/configuracoes", icon: Settings },
 ] as const;
 

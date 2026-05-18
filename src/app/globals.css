@@ -141,13 +141,15 @@
     position: fixed;
     inset: 0;
     margin: 0;
-    padding: 2cm;
+    padding: 1.5cm 2cm;
     background: white;
     border: none !important;
     border-radius: 0 !important;
     box-shadow: none !important;
     font-family: serif;
     color: black;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   .print-area table {
     page-break-inside: auto;
@@ -159,6 +161,30 @@
   }
   .print-area th,
   .print-area td {
-    padding: 4px 8px;
+    padding: 3px 6px;
+  }
+  /* Inputs and textareas look like plain text on print */
+  .print-area input,
+  .print-area textarea,
+  .print-area select {
+    border: none !important;
+    border-bottom: 1px solid #000 !important;
+    background: transparent !important;
+    outline: none !important;
+    padding: 0 !important;
+    font-family: inherit !important;
+    font-size: inherit !important;
+    color: inherit !important;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .print-area textarea {
+    border: 1px solid #000 !important;
+    resize: none;
+  }
+  /* Elements explicitly marked no-print */
+  .no-print {
+    display: none !important;
+    visibility: hidden !important;
   }
 }
