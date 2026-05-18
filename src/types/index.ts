@@ -263,3 +263,30 @@ export interface Requisicao {
   criadoEm: string;
   atualizadoEm: string;
 }
+
+// ===== REQUISIÇÃO DE COMPRA (documento simplificado para impressão) =====
+
+export type PurchaseRequisitionStatus = "RASCUNHO" | "GERADA" | "IMPRESSA" | "CANCELADA";
+
+export interface PurchaseRequisitionItem {
+  id: string;
+  peca: string;
+  quantidade: number;
+  valorUnitario: number;
+  observacao: string;
+}
+
+export interface PurchaseRequisition {
+  id: string;
+  cotacaoId: string;
+  cotacaoCodigo: string;
+  numero: string;
+  data: string;
+  solicitante: string;
+  responsavel: string;
+  observacaoGeral: string;
+  itens: PurchaseRequisitionItem[];
+  status: PurchaseRequisitionStatus;
+  criadoEm: string;
+  atualizadoEm: string;
+}

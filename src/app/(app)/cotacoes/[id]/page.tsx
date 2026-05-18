@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { mockCotacoes } from "@/lib/mock-data/cotacoes";
 import { mockOrcamentos } from "@/lib/mock-data/orcamentos";
+import { findByCotacaoId } from "@/lib/mock-data/purchase-requisitions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   cotacaoStatusLabel, cotacaoStatusColor, urgenciaLabel, urgenciaColor,
@@ -12,6 +13,7 @@ import {
 } from "@/lib/utils/status";
 import { formatDate, formatCurrency } from "@/lib/utils/format";
 import { canDo } from "@/lib/security/permissions";
+import { RequisicaoCompraSection } from "@/components/cotacao/requisicao-compra-section";
 
 interface Props { params: Promise<{ id: string }>; }
 
@@ -25,6 +27,7 @@ export default async function CotacaoDetalhePage({ params }: Props) {
   if (!cotacao) notFound();
 
   const orcamentos = mockOrcamentos.filter((o) => o.cotacaoId === id);
+  const purchaseRequisition = findByCotacaoId(id);
 
   return (
     <div className="space-y-6">
@@ -109,6 +112,15 @@ export default async function CotacaoDetalhePage({ params }: Props) {
           </div>
         </div>
       </div>
+
+      {perms.gerarRequisicao && (
+        <RequisicaoCompraSection
+          cotacaoId={id}
+          cotacaoCodigo={cotacao.codigo}
+          userName={user.nome}
+          initialRequisition={purchaseRequisition}
+        />
+      )}
 
       {orcamentos.length > 0 && (
         <div className="rounded-lg border border-gray-200 bg-white">

@@ -128,3 +128,37 @@
     @apply font-sans;
   }
 }
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: fixed;
+    inset: 0;
+    margin: 0;
+    padding: 2cm;
+    background: white;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    font-family: serif;
+    color: black;
+  }
+  .print-area table {
+    page-break-inside: auto;
+    border-collapse: collapse;
+    width: 100%;
+  }
+  .print-area tr {
+    page-break-inside: avoid;
+  }
+  .print-area th,
+  .print-area td {
+    padding: 4px 8px;
+  }
+}
