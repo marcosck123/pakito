@@ -139,6 +139,7 @@ function ItemRow({
   register,
   quantidade,
   valorUnitario,
+  fornecedor,
 }: {
   index: number;
   onRemove: () => void;
@@ -146,11 +147,19 @@ function ItemRow({
   register: ReturnType<typeof useForm<FormValues>>["register"];
   quantidade: number;
   valorUnitario: number;
+  fornecedor?: string;
 }) {
   return (
     <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-xs font-medium text-gray-500">Item {pad(index + 1)}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-gray-500">Item {pad(index + 1)}</span>
+          {fornecedor && (
+            <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+              {fornecedor}
+            </span>
+          )}
+        </div>
         {canRemove && (
           <button
             type="button"
@@ -452,6 +461,7 @@ export function RequisicaoCompraSection({
                     register={register}
                     quantidade={Number(watched.itens?.[index]?.quantidade) || 0}
                     valorUnitario={Number(watched.itens?.[index]?.valorUnitario) || 0}
+                    fornecedor={watched.itens?.[index]?.fornecedor}
                   />
                 ))}
               </div>

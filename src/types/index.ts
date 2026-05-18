@@ -274,6 +274,7 @@ export interface PurchaseRequisitionItem {
   quantidade: number;
   valorUnitario: number;
   observacao: string;
+  fornecedor?: string;
 }
 
 export interface PurchaseRequisition {

@@ -50,16 +50,13 @@ export default async function CotacaoDetalhePage({ params, searchParams }: Props
   }
   const suggestedItems: PurchaseRequisitionItem[] = cotacao.itens.map((ci, i) => {
     const best = bestByItem.get(ci.id);
-    const parts = [
-      best?.fornecedor ? best.fornecedor : null,
-      best?.marca ? `Marca: ${best.marca}` : null,
-    ].filter(Boolean);
     return {
       id: `s${i}`,
       peca: ci.peca?.nome ?? "",
       quantidade: ci.quantidade,
       valorUnitario: best?.valorUnitario ?? 0,
-      observacao: parts.join(" · "),
+      observacao: best?.marca ? `Marca: ${best.marca}` : "",
+      fornecedor: best?.fornecedor ?? "",
     };
   });
 
