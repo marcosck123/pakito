@@ -8,7 +8,7 @@ Sistema web para organizar o processo completo de cotação, requisição, aprov
 - **TypeScript**
 - **Tailwind CSS**
 - **shadcn/ui**
-- **Mock data** (sem banco de dados — MVP de demonstração)
+- **Mock data** no MVP, com o módulo de Aprovação já integrado ao Supabase/PostgreSQL
 
 ## Módulos
 
@@ -44,3 +44,16 @@ npm run dev
 ```
 
 Acesse: http://localhost:3000
+
+## Banco de dados
+
+O módulo de Aprovação de requisições já usa Supabase/PostgreSQL.
+
+1. Crie um projeto no Supabase.
+2. Rode o SQL em `supabase/migrations/202605180001_approval_requisitions.sql`.
+3. Configure as variáveis de ambiente:
+
+```bash
+SUPABASE_URL=https://seu-projeto.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=sua-service-role-key
+```
