@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { mockCotacoes } from "@/lib/mock-data/cotacoes";
 import { mockOrcamentos } from "@/lib/mock-data/orcamentos";
-import { findByCotacaoId } from "@/lib/mock-data/purchase-requisitions";
+import { findByCotacaoId, findByCotacaoIdAndFornecedor } from "@/lib/mock-data/purchase-requisitions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   cotacaoStatusLabel, cotacaoStatusColor, urgenciaLabel, urgenciaColor,
@@ -48,7 +48,7 @@ export default async function CotacaoDetalhePage({ params, searchParams }: Props
       }
     }
   }
-  const suggestedItems: PurchaseRequisitionItem[] = cotacao.itens.map((ci, i) => {
+  const allSuggestedItems: PurchaseRequisitionItem[] = cotacao.itens.map((ci, i) => {
     const best = bestByItem.get(ci.id);
     return {
       id: `s${i}`,
@@ -59,6 +59,18 @@ export default async function CotacaoDetalhePage({ params, searchParams }: Props
       fornecedor: best?.fornecedor ?? "",
     };
   });
+
+  // Group items by supplier — one requisition per supplier
+  const byFornecedor = new Map<string, PurchaseRequisitionItem[]>();
+  for (const item of allSuggestedItems) {
+    const key = item.fornecedor || "";
+    if (!byFornecedor.has(key)) byFornecedor.set(key, []);
+    byFornecedor.get(key)!.push(item);
+  }
+  const supplierGroups = Array.from(byFornecedor.entries()); // [[nome, items], ...]
+
+  const baseCode = cotacao.codigo.replace("COT-", "");
+  const multiSupplier = supplierGroups.length > 1;
 
   return (
     <div className="space-y-6">
@@ -145,15 +157,27 @@ export default async function CotacaoDetalhePage({ params, searchParams }: Props
       </div>
 
       {perms.gerarRequisicao && (
-        <div id="requisicao">
-          <RequisicaoCompraSection
-            cotacaoId={id}
-            cotacaoCodigo={cotacao.codigo}
-            userName={user.nome}
-            initialRequisition={purchaseRequisition}
-            autoOpen={criar === "1"}
-            suggestedItems={suggestedItems}
-          />
+        <div id="requisicao" className="space-y-4">
+          {supplierGroups.map(([fornecedorNome, items], i) => {
+            const suffix = multiSupplier ? `-${String.fromCharCode(65 + i)}` : "";
+            const defaultNumero = `RC-${baseCode}${suffix}`;
+            const initialRequisition = fornecedorNome
+              ? findByCotacaoIdAndFornecedor(id, fornecedorNome)
+              : findByCotacaoId(id);
+            return (
+              <RequisicaoCompraSection
+                key={fornecedorNome || "sem-fornecedor"}
+                cotacaoId={id}
+                cotacaoCodigo={cotacao.codigo}
+                userName={user.nome}
+                initialRequisition={initialRequisition}
+                autoOpen={criar === "1" && i === 0}
+                suggestedItems={items}
+                fornecedorNome={fornecedorNome || undefined}
+                defaultNumero={defaultNumero}
+              />
+            );
+          })}
         </div>
       )}
 

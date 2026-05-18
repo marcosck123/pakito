@@ -281,6 +281,7 @@ export interface PurchaseRequisition {
   id: string;
   cotacaoId: string;
   cotacaoCodigo: string;
+  fornecedorNome?: string;
   numero: string;
   data: string;
   solicitante: string;

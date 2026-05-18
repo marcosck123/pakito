@@ -227,6 +227,8 @@ interface Props {
   initialRequisition: PurchaseRequisition | null;
   autoOpen?: boolean;
   suggestedItems?: PurchaseRequisitionItem[];
+  fornecedorNome?: string;
+  defaultNumero?: string;
 }
 
 export function RequisicaoCompraSection({
@@ -236,6 +238,8 @@ export function RequisicaoCompraSection({
   initialRequisition,
   autoOpen = false,
   suggestedItems,
+  fornecedorNome,
+  defaultNumero,
 }: Props) {
   const [saved, setSaved] = useState<PurchaseRequisition | null>(initialRequisition);
   const [mode, setMode] = useState<"view" | "form">(() =>
@@ -245,7 +249,7 @@ export function RequisicaoCompraSection({
   const [error, setError] = useState("");
 
   const today = new Date().toISOString().slice(0, 10);
-  const defaultNumber = `RC-${cotacaoCodigo.replace("COT-", "")}`;
+  const defaultNumber = defaultNumero ?? `RC-${cotacaoCodigo.replace("COT-", "")}`;
   const defaultItems = suggestedItems && suggestedItems.length > 0 ? suggestedItems : [blankItem()];
 
   const { register, control, watch, handleSubmit, reset, formState } = useForm<FormValues>({
@@ -294,6 +298,7 @@ export function RequisicaoCompraSection({
         id: saved?.id,
         cotacaoId,
         cotacaoCodigo,
+        fornecedorNome: fornecedorNome ?? "",
         numero: data.numero,
         data: data.data,
         solicitante: data.solicitante,
@@ -330,6 +335,11 @@ export function RequisicaoCompraSection({
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-blue-600" />
             <h2 className="text-sm font-semibold text-gray-800">Requisição de Compra</h2>
+            {fornecedorNome && (
+              <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
+                {fornecedorNome}
+              </span>
+            )}
           </div>
 
           {saved ? (
@@ -385,6 +395,11 @@ export function RequisicaoCompraSection({
           <h2 className="text-sm font-semibold text-gray-800">
             {saved ? "Editar Requisição de Compra" : "Nova Requisição de Compra"}
           </h2>
+          {fornecedorNome && (
+            <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
+              {fornecedorNome}
+            </span>
+          )}
         </div>
       </div>
 
