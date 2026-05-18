@@ -25,7 +25,7 @@ export async function POST(request: Request) {
 
   let text = "";
   try {
-    // Use lib path to avoid test-file loading issue in Next.js
+    // Use lib path to bypass test-file loading in Next.js (pdf-parse v1 quirk)
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const pdfParse = require("pdf-parse/lib/pdf-parse.js");
     const data = await pdfParse(buffer);
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          "Este PDF parece ser uma imagem escaneada e não possui texto selecionável. Use a opção de inserção manual ou digitalize um PDF com texto copiável.",
+          "Este PDF não possui texto selecionável (parece ser uma imagem escaneada). Use a opção de inserção manual ou utilize um PDF com texto copiável.",
       },
       { status: 422 }
     );
@@ -57,7 +57,17 @@ export async function POST(request: Request) {
       codigoOriginal: ci.peca?.codigoOriginal,
     })) ?? [];
 
-  const itens = parseOrcamentoPdf(text, cotacaoItens);
+  const { itens, freteDetectado } = parseOrcamentoPdf(text, cotacaoItens);
 
-  return NextResponse.json({ itens, totalLinhas: text.split("\n").length });
+  if (itens.length === 0) {
+    return NextResponse.json(
+      {
+        error:
+          "Nenhum item com valor foi detectado no PDF. O formato pode ser incompatível — use a inserção manual.",
+      },
+      { status: 422 }
+    );
+  }
+
+  return NextResponse.json({ itens, freteDetectado });
 }

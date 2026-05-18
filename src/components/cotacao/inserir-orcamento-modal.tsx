@@ -242,6 +242,10 @@ export function InserirOrcamentoModal({
         );
         return;
       }
+      // Pre-fill frete if detected
+      if (data.freteDetectado != null && data.freteDetectado > 0) {
+        setPdfGeneral((p) => ({ ...p, valorFrete: String(data.freteDetectado) }));
+      }
       setReviewItems(
         extracted.map((item, i) => ({
           id: `ri-${i}`,
