@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { mockCotacoes } from "@/lib/mock-data/cotacoes";
 import { parseOrcamentoPdf } from "@/lib/pdf/parser";
+import { extractTextFromPdf } from "@/lib/pdf/extract-text";
 
 export const runtime = "nodejs";
 
@@ -116,19 +117,13 @@ export async function POST(request: Request) {
       return errorResponse(400, "O arquivo chegou vazio no servidor.", "empty_buffer");
     }
 
-    // ── pdf-parse ─────────────────────────────────────────────────────────
+    // ── pdfjs-dist ────────────────────────────────────────────────────────
     diag.step = "pdf_parse_started";
     log("pdf_parse_started");
 
     let text = "";
     try {
-      const pdfParseModule = await import("pdf-parse");
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pdfParse: (buf: Buffer) => Promise<{ text: string; numpages: number }> =
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (pdfParseModule as any).default ?? pdfParseModule;
-      const result = await pdfParse(buffer);
-      text = result?.text ?? "";
+      text = await extractTextFromPdf(buffer);
       diag.step = "pdf_parse_success";
       log("pdf_parse_success");
     } catch (err) {

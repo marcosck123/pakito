@@ -1,30 +1,24 @@
 import { NextResponse } from "next/server";
+import { extractTextFromPdf } from "@/lib/pdf/extract-text";
 
 export const runtime = "nodejs";
 
 export async function GET() {
   const timestamp = new Date().toISOString();
 
-  // Test pdf-parse import and callability
-  let pdfParseStatus: string = "not_tested";
-  let pdfParseVersion: string = "unknown";
-  let pdfParseExportShape: string = "unknown";
+  let pdfjsStatus: string = "not_tested";
+  let pdfjsVersion: string = "unknown";
 
   try {
-    const mod = await import("pdf-parse");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const keys = Object.keys(mod as any);
-    pdfParseExportShape = keys.join(", ");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pkg = require("pdfjs-dist/package.json");
+    pdfjsVersion = pkg.version ?? "unknown";
+  } catch {
+    pdfjsVersion = "package_json_unreadable";
+  }
 
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const pkg = require("pdf-parse/package.json");
-      pdfParseVersion = pkg.version ?? "unknown";
-    } catch {
-      pdfParseVersion = "package_json_unreadable";
-    }
-
-    // Minimal valid PDF to verify the function is callable
+  try {
+    // Minimal valid PDF to verify extractTextFromPdf is callable
     const tinyPdf = Buffer.from(
       "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj " +
       "2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj " +
@@ -33,12 +27,10 @@ export async function GET() {
       "0000000058 00000 n\n0000000115 00000 n\n" +
       "trailer<</Size 4/Root 1 0 R>>\nstartxref\n190\n%%EOF"
     );
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pdfParse = (mod as any).default ?? mod;
-    await pdfParse(tinyPdf);
-    pdfParseStatus = "callable_ok";
+    await extractTextFromPdf(tinyPdf);
+    pdfjsStatus = "callable_ok";
   } catch (err) {
-    pdfParseStatus = `error: ${err instanceof Error ? err.message : String(err)}`;
+    pdfjsStatus = `error: ${err instanceof Error ? err.message : String(err)}`;
   }
 
   return NextResponse.json({
@@ -53,10 +45,9 @@ export async function GET() {
       VERCEL_GIT_COMMIT_REF: process.env.VERCEL_GIT_COMMIT_REF ?? null,
       VERCEL_REGION: process.env.VERCEL_REGION ?? null,
     },
-    pdfParse: {
-      status: pdfParseStatus,
-      version: pdfParseVersion,
-      exportShape: pdfParseExportShape,
+    pdfjs: {
+      status: pdfjsStatus,
+      version: pdfjsVersion,
     },
     endpoint: {
       path: "/api/orcamentos/parse-pdf",
