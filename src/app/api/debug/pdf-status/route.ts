@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
+import { setupPdfJsNodePolyfills } from "@/lib/pdf/pdfjs-polyfill";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-// Minimal valid 1-page PDF for smoke-testing the extractor
 const TINY_PDF = Buffer.from(
   "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj " +
   "2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj " +
@@ -27,12 +27,15 @@ export async function GET() {
     pdfjsVersion = "package_json_unreadable";
   }
 
-  // ── pdfjs-dist callable test ──────────────────────────────────────────────
+  // ── polyfill + callable test ──────────────────────────────────────────────
   let pdfjsStatus = "not_tested";
   let pdfjsError: string | null = null;
+  let polyfillApplied = false;
 
   try {
-    // Dynamic import: if pdfjs-dist fails to initialize it throws here, not at module load
+    await setupPdfJsNodePolyfills();
+    polyfillApplied = typeof globalThis.DOMMatrix !== "undefined";
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs") as any;
 
@@ -66,6 +69,7 @@ export async function GET() {
       pdfjs: {
         status: pdfjsStatus,
         version: pdfjsVersion,
+        polyfillApplied,
         error: pdfjsError,
       },
       endpoint: {

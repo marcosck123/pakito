@@ -1,6 +1,11 @@
+import { setupPdfJsNodePolyfills } from "./pdfjs-polyfill";
+
 export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
-  // Dynamic import avoids module-load-time crash if pdfjs-dist fails to initialize.
-  // disableWorker=true is required in serverless environments (no worker thread support).
+  // Polyfill must run before pdfjs-dist is imported; pdfjs reads DOMMatrix at
+  // module-evaluation time and throws ReferenceError if it is absent.
+  await setupPdfJsNodePolyfills();
+
+  // Dynamic import so a failed module load is catchable by the caller.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs") as any;
 
