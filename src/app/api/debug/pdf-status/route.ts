@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { extractTextFromPdf } from "@/lib/pdf/extract-text";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function GET() {
   const timestamp = new Date().toISOString();
@@ -33,34 +35,43 @@ export async function GET() {
     pdfjsStatus = `error: ${err instanceof Error ? err.message : String(err)}`;
   }
 
-  return NextResponse.json({
-    ok: true,
-    timestamp,
-    runtime: "nodejs",
-    env: {
-      NODE_ENV: process.env.NODE_ENV,
-      VERCEL: process.env.VERCEL ?? null,
-      VERCEL_ENV: process.env.VERCEL_ENV ?? null,
-      VERCEL_GIT_COMMIT_SHA: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
-      VERCEL_GIT_COMMIT_REF: process.env.VERCEL_GIT_COMMIT_REF ?? null,
-      VERCEL_REGION: process.env.VERCEL_REGION ?? null,
+  return NextResponse.json(
+    {
+      ok: true,
+      timestamp,
+      runtime: "nodejs",
+      env: {
+        NODE_ENV: process.env.NODE_ENV,
+        VERCEL: process.env.VERCEL ?? null,
+        VERCEL_ENV: process.env.VERCEL_ENV ?? null,
+        VERCEL_GIT_COMMIT_SHA: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
+        VERCEL_GIT_COMMIT_REF: process.env.VERCEL_GIT_COMMIT_REF ?? null,
+        VERCEL_REGION: process.env.VERCEL_REGION ?? null,
+      },
+      pdfjs: {
+        status: pdfjsStatus,
+        version: pdfjsVersion,
+      },
+      endpoint: {
+        path: "/api/orcamentos/parse-pdf",
+        method: "POST",
+        expectedField: "file",
+        expectedMime: "application/pdf",
+        reasons422: [
+          "empty_buffer",
+          "pdf_parse_error",
+          "no_selectable_text",
+        ],
+        reasons400: ["file_missing", "wrong_mime_type", "form_parse_error"],
+        softFallback200: "parser_no_items → requiresManualReview=true",
+      },
     },
-    pdfjs: {
-      status: pdfjsStatus,
-      version: pdfjsVersion,
-    },
-    endpoint: {
-      path: "/api/orcamentos/parse-pdf",
-      method: "POST",
-      expectedField: "file",
-      expectedMime: "application/pdf",
-      reasons422: [
-        "empty_buffer",
-        "pdf_parse_error",
-        "no_selectable_text",
-      ],
-      reasons400: ["file_missing", "wrong_mime_type", "form_parse_error"],
-      softFallback200: "parser_no_items → requiresManualReview=true",
-    },
-  });
+    {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0",
+      },
+    }
+  );
 }

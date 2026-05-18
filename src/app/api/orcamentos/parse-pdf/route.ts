@@ -4,6 +4,8 @@ import { parseOrcamentoPdf } from "@/lib/pdf/parser";
 import { extractTextFromPdf } from "@/lib/pdf/extract-text";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 type Diagnostics = {
   requestId: string;
