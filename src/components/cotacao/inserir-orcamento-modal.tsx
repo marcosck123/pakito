@@ -104,6 +104,7 @@ export function InserirOrcamentoModal({
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState("");
+  const [pdfRawText, setPdfRawText] = useState(""); // extracted text for manual fallback
 
   // PDF review state
   const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
@@ -222,6 +223,7 @@ export function InserirOrcamentoModal({
     if (!pdfFile) return;
     setPdfLoading(true);
     setPdfError("");
+    setPdfRawText("");
     try {
       const fd = new FormData();
       fd.append("file", pdfFile);
@@ -231,21 +233,26 @@ export function InserirOrcamentoModal({
         body: fd,
       });
       const data = await res.json();
+
+      // Hard failures (400/422/500) — show error, keep on upload step
       if (!res.ok) {
         setPdfError(data.error ?? "Erro ao processar PDF.");
         return;
       }
-      const extracted: ExtractedItem[] = data.itens ?? [];
-      if (extracted.length === 0) {
-        setPdfError(
-          "Nenhum item com valor foi detectado no PDF. Verifique o arquivo ou use a inserção manual."
-        );
-        return;
-      }
+
       // Pre-fill frete if detected
       if (data.freteDetectado != null && data.freteDetectado > 0) {
         setPdfGeneral((p) => ({ ...p, valorFrete: String(data.freteDetectado) }));
       }
+
+      // Soft fallback: PDF has text but parser found no priced items
+      if (data.requiresManualReview) {
+        setPdfRawText(data.rawText ?? "");
+        setPdfError(data.message ?? "Nenhum item identificado automaticamente. Confira o texto e preencha manualmente.");
+        return; // stays on pdf-upload step with rawText visible
+      }
+
+      const extracted: ExtractedItem[] = data.itens ?? [];
       setReviewItems(
         extracted.map((item, i) => ({
           id: `ri-${i}`,
@@ -428,9 +435,26 @@ export function InserirOrcamentoModal({
             </div>
 
             {pdfError && (
-              <div className="flex items-start gap-2 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
-                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                <span>{pdfError}</span>
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
+                  <span>{pdfError}</span>
+                </div>
+                {pdfRawText && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-xs font-semibold text-amber-700">Texto extraído do PDF (use como referência):</p>
+                    <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap rounded-md bg-white border border-amber-200 px-3 py-2 text-xs text-gray-700 font-mono">
+                      {pdfRawText}
+                    </pre>
+                    <button
+                      onClick={() => setStep("form")}
+                      className="flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      Preencher manualmente com este texto como apoio
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

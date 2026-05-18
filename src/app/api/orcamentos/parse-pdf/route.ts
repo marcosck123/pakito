@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { mockCotacoes } from "@/lib/mock-data/cotacoes";
 import { parseOrcamentoPdf } from "@/lib/pdf/parser";
 
-// Must run in Node.js — pdf-parse is not compatible with Edge runtime
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
@@ -39,13 +38,10 @@ export async function POST(request: Request) {
     );
   }
 
-  // Parse PDF text — dynamic import avoids bundler path-resolution issues on Vercel
+  // ── Extract text ──────────────────────────────────────────────────────────
   let text = "";
   try {
-    // pdf-parse v1: dynamic import of main export; serverExternalPackages ensures
-    // the package is not bundled and loaded from node_modules at runtime
     const pdfParseModule = await import("pdf-parse");
-    // Handle both CJS default-export and ESM named-export shapes
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pdfParse: (buf: Buffer) => Promise<{ text: string }> =
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -64,17 +60,20 @@ export async function POST(request: Request) {
   }
 
   const textLength = text.replace(/\s/g, "").length;
+
+  // ── Hard failure: no text at all (scanned image) ──────────────────────────
   if (textLength < 30) {
     return NextResponse.json(
       {
         error:
-          "Este PDF não possui texto selecionável (parece ser uma imagem escaneada). Use a opção de inserção manual ou utilize um PDF com texto copiável.",
+          "Este PDF não possui texto selecionável (provavelmente é uma imagem escaneada). Use a opção de inserção manual ou utilize um PDF com texto copiável.",
         debug: { fileName: file.name, fileSize: file.size, textLength, preview: text.slice(0, 200) },
       },
       { status: 422 }
     );
   }
 
+  // ── Parse items ───────────────────────────────────────────────────────────
   const cotacao = cotacaoId ? mockCotacoes.find((c) => c.id === cotacaoId) : null;
   const cotacaoItens =
     cotacao?.itens.map((ci) => ({
@@ -86,16 +85,37 @@ export async function POST(request: Request) {
 
   const { itens, freteDetectado } = parseOrcamentoPdf(text, cotacaoItens);
 
+  const debug = {
+    fileName: file.name,
+    fileType: file.type,
+    fileSize: file.size,
+    textLength,
+    preview: text.slice(0, 1000),
+    itemsFound: itens.length,
+  };
+
+  // ── Soft failure: text found but parser detected no priced items ──────────
+  // Return 200 so the operator can still proceed manually.
   if (itens.length === 0) {
-    return NextResponse.json(
-      {
-        error:
-          "Nenhum item com valor foi detectado no PDF. O formato pode ser incompatível — use a inserção manual.",
-        debug: { textLength, preview: text.slice(0, 500) },
-      },
-      { status: 422 }
-    );
+    return NextResponse.json({
+      success: true,
+      requiresManualReview: true,
+      message:
+        "Texto extraído, mas nenhum item com valor foi identificado automaticamente. Confira o texto abaixo e preencha manualmente.",
+      itens: [],
+      freteDetectado,
+      rawText: text,
+      debug,
+    });
   }
 
-  return NextResponse.json({ itens, freteDetectado });
+  return NextResponse.json({
+    success: true,
+    requiresManualReview: false,
+    message: "Itens extraídos com sucesso. Confira e corrija antes de confirmar.",
+    itens,
+    freteDetectado,
+    rawText: text,
+    debug,
+  });
 }
