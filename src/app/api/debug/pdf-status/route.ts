@@ -1,10 +1,17 @@
+import fs from "fs";
+import { createRequire } from "module";
 import { NextResponse } from "next/server";
-import { extractTextFromPdf } from "@/lib/pdf/extract-text";
+import {
+  extractTextFromPdf,
+  resolvePdfJsWorkerPath,
+} from "@/lib/pdf/extract-text";
 import { setupPdfJsNodePolyfills } from "@/lib/pdf/pdfjs-polyfill";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+const require = createRequire(import.meta.url);
 
 const TINY_PDF = Buffer.from(
   "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj " +
@@ -29,6 +36,19 @@ export async function GET() {
   }
 
   // ── callable test via the real extraction path ────────────────────────────
+  let workerResolved = false;
+  let workerPath: string | null = null;
+  let workerExists = false;
+
+  try {
+    workerPath = resolvePdfJsWorkerPath();
+    workerResolved = true;
+    workerExists = fs.existsSync(workerPath);
+  } catch {
+    workerResolved = false;
+    workerExists = false;
+  }
+
   let pdfjsStatus = "not_tested";
   let pdfjsError: string | null = null;
   let polyfillApplied = false;
@@ -64,6 +84,9 @@ export async function GET() {
         status: pdfjsStatus,
         version: pdfjsVersion,
         polyfillApplied,
+        workerResolved,
+        workerPath,
+        workerExists,
         error: pdfjsError,
       },
       endpoint: {
