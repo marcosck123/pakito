@@ -40,9 +40,6 @@ export default async function CotacaoDetalhePage({ params }: Props) {
           {perms.compararOrcamento && orcamentos.length > 0 && (
             <Link href={`/comparador?cotacao=${id}`} className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-purple-700">Comparar orçamentos</Link>
           )}
-          {perms.gerarRequisicao && cotacao.status === "EM_ANALISE" && (
-            <Link href={`/requisicoes/nova?cotacao=${id}`} className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">Gerar requisição</Link>
-          )}
         </div>
       </div>
 
