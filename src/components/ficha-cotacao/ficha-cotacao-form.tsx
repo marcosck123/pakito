@@ -5,84 +5,87 @@ import { Plus, Trash2, Printer } from "lucide-react";
 
 type FichaItem = {
   nome: string;
-  quantidade: string;
   precoUnitario: string;
-  observacao: string;
+  precoSubtotal: string;
 };
 
 type FichaFormValues = {
-  dataPedido: string;
-  veiculo: string;
-  placa: string;
-  solicitante: string;
-  fornecedor: string;
+  dataDia: string;
+  dataMes: string;
+  dataAno: string;
+  veiculoPlaca: string;
   tipo: "particular_loja" | "loja" | "consignado" | "fazenda";
+  fornecedor: string;
   itens: FichaItem[];
   diasEntrega: string;
   frete: string;
-  pgAVista: boolean;
-  pgPix: boolean;
-  pgCredito: boolean;
   pgParcelado: boolean;
   pgParceladoQtd: string;
+  pgAVista: boolean;
+  pgCredito: boolean;
   pgParceladoCredito: boolean;
   observacoes: string;
   assServico: string;
   assPagamento: string;
-  assPreparacao: string;
-  assPosVenda: string;
-  assData: string;
+  preparacao: boolean;
+  posVenda: boolean;
+  dataAssDia: string;
+  dataAssMes: string;
+  dataAssAno: string;
 };
 
-const TIPOS = [
-  { value: "particular_loja" as const, label: "Particular Loja" },
-  { value: "loja" as const, label: "Loja" },
-  { value: "consignado" as const, label: "Consignado" },
-  { value: "fazenda" as const, label: "Fazenda" },
-];
-
-const parseDecimal = (s: string) =>
-  parseFloat(String(s).replace(",", ".")) || 0;
+const parseBRL = (s: string) =>
+  parseFloat(String(s).replace(/\./g, "").replace(",", ".")) || 0;
 
 const brl = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-function FichaInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
+// Input that looks like an underlined field inside a table cell
+function LineInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   const { className = "", ...rest } = props;
   return (
     <input
       {...rest}
-      className={`w-full bg-transparent border-b border-gray-400 focus:border-blue-500 focus:outline-none px-1 py-0.5 text-sm leading-snug ${className}`}
+      className={`bg-transparent focus:outline-none text-xs w-full ${className}`}
     />
   );
 }
 
 export function FichaCotacaoForm() {
-  const today = new Date().toLocaleDateString("pt-BR");
+  const today = new Date();
+  const dd = String(today.getDate()).padStart(2, "0");
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const yyyy = String(today.getFullYear());
 
   const { register, control } = useForm<FichaFormValues>({
     defaultValues: {
-      dataPedido: today,
-      veiculo: "",
-      placa: "",
-      solicitante: "",
-      fornecedor: "",
+      dataDia: dd,
+      dataMes: mm,
+      dataAno: yyyy,
+      veiculoPlaca: "",
       tipo: "loja",
-      itens: [{ nome: "", quantidade: "1", precoUnitario: "", observacao: "" }],
+      fornecedor: "",
+      // Start with 5 blank rows matching the physical form
+      itens: Array.from({ length: 5 }, () => ({
+        nome: "",
+        precoUnitario: "",
+        precoSubtotal: "",
+      })),
       diasEntrega: "",
-      frete: "0,00",
-      pgAVista: false,
-      pgPix: false,
-      pgCredito: false,
+      frete: "",
       pgParcelado: false,
       pgParceladoQtd: "",
+      pgAVista: false,
+      pgCredito: false,
       pgParceladoCredito: false,
       observacoes: "",
       assServico: "",
       assPagamento: "",
-      assPreparacao: "",
-      assPosVenda: "",
-      assData: today,
+      preparacao: false,
+      posVenda: false,
+      dataAssDia: dd,
+      dataAssMes: mm,
+      dataAssAno: yyyy,
     },
   });
 
@@ -91,327 +94,353 @@ export function FichaCotacaoForm() {
   const watchedFrete = useWatch({ control, name: "frete" });
   const pgParcelado = useWatch({ control, name: "pgParcelado" });
 
-  const subtotais = watchedItens.map((item) => {
-    const qty = parseDecimal(item.quantidade);
-    const price = parseDecimal(item.precoUnitario);
-    return qty * price;
-  });
-  const totalItens = subtotais.reduce((a, b) => a + b, 0);
-  const totalGeral = totalItens + parseDecimal(watchedFrete);
+  // PREÇO TOTAL = sum of all manually-entered subtotals + frete (matches physical form)
+  const totalItens = watchedItens.reduce(
+    (acc, item) => acc + parseBRL(item.precoSubtotal),
+    0
+  );
+  const totalGeral = totalItens + parseBRL(watchedFrete);
+
+  // Shared cell/input styles
+  const cell = "border border-black";
+  const hdr = "font-bold uppercase text-[10px] tracking-wide";
+  const dateInput = (field: "dataDia" | "dataMes" | "dataAno" | "dataAssDia" | "dataAssMes" | "dataAssAno", maxLen: number, w: string) => (
+    <input
+      {...register(field)}
+      maxLength={maxLen}
+      className={`${w} text-center border-b border-black bg-transparent focus:outline-none text-xs`}
+    />
+  );
 
   return (
     <div>
-      {/* Page controls — hidden on print */}
+      {/* ── Screen controls ──────────────────────────────────────────────── */}
       <div className="no-print mb-5 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Ficha de Cotação de Peças</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Preencha os dados e clique em Imprimir para gerar o formulário físico.
+            Preencha e clique em Imprimir para gerar a folha física.
           </p>
         </div>
         <button
           type="button"
           onClick={() => window.print()}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 active:bg-blue-800 transition-colors"
+          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
         >
           <Printer className="h-4 w-4" />
           Imprimir
         </button>
       </div>
 
-      {/* ── The ficha — this div becomes the print area ───────────────────── */}
-      <div className="print-area bg-white rounded-lg shadow border border-gray-200 p-6 max-w-4xl mx-auto">
+      {/* ── The ficha — becomes the print-area ───────────────────────────── */}
+      <div className="print-area bg-white max-w-3xl mx-auto shadow-md border-2 border-black">
+        <table className="w-full border-collapse">
+          <tbody>
 
-        {/* Title */}
-        <div className="text-center mb-4">
-          <p className="text-base font-bold uppercase tracking-widest leading-tight">
-            Cotação de Peças para Pakito Veículos
-          </p>
-        </div>
+            {/* ── Title ─────────────────────────────────────────────────── */}
+            <tr>
+              <td
+                colSpan={4}
+                className={`${cell} text-center py-1.5 font-bold uppercase tracking-widest text-sm`}
+              >
+                COTAÇÃO DE PEÇAS PARA PAKITO VEÍCULOS
+              </td>
+            </tr>
 
-        {/* Row 1: Data / Veículo / Placa */}
-        <div className="grid grid-cols-3 gap-4 mb-3">
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-gray-500 mb-0.5 tracking-wide">
-              Data do Pedido
-            </label>
-            <FichaInput {...register("dataPedido")} />
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-gray-500 mb-0.5 tracking-wide">
-              Veículo
-            </label>
-            <FichaInput {...register("veiculo")} placeholder="Modelo / ano" />
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-gray-500 mb-0.5 tracking-wide">
-              Placa
-            </label>
-            <FichaInput
-              {...register("placa")}
-              placeholder="AAA-0000"
-              className="uppercase"
-            />
-          </div>
-        </div>
+            {/* ── Data do pedido ────────────────────────────────────────── */}
+            <tr>
+              <td colSpan={4} className={`${cell} text-center py-1 ${hdr}`}>
+                DATA DO PEDIDO:&ensp;
+                {dateInput("dataDia", 2, "w-5")}
+                {" / "}
+                {dateInput("dataMes", 2, "w-5")}
+                {" / "}
+                {dateInput("dataAno", 4, "w-9")}
+              </td>
+            </tr>
 
-        {/* Row 2: Solicitante / Fornecedor */}
-        <div className="grid grid-cols-2 gap-4 mb-3">
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-gray-500 mb-0.5 tracking-wide">
-              Solicitante
-            </label>
-            <FichaInput {...register("solicitante")} />
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-gray-500 mb-0.5 tracking-wide">
-              Fornecedor
-            </label>
-            <FichaInput {...register("fornecedor")} />
-          </div>
-        </div>
-
-        {/* Row 3: Tipo */}
-        <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm">
-          <span className="text-[10px] font-bold uppercase text-gray-500 tracking-wide">
-            Tipo:
-          </span>
-          {TIPOS.map((t) => (
-            <label key={t.value} className="flex items-center gap-1.5 cursor-pointer">
-              <input
-                type="radio"
-                value={t.value}
-                {...register("tipo")}
-                className="accent-blue-600"
-              />
-              <span>{t.label}</span>
-            </label>
-          ))}
-        </div>
-
-        <hr className="border-gray-300 mb-3" />
-
-        {/* Items table */}
-        <div className="mb-3 overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr>
-                <th className="border border-gray-400 bg-gray-100 px-2 py-1 text-center text-[10px] font-bold uppercase w-8">
-                  #
-                </th>
-                <th className="border border-gray-400 bg-gray-100 px-2 py-1 text-left text-[10px] font-bold uppercase">
-                  Nome da Peça
-                </th>
-                <th className="border border-gray-400 bg-gray-100 px-2 py-1 text-center text-[10px] font-bold uppercase w-16">
-                  Qtd
-                </th>
-                <th className="border border-gray-400 bg-gray-100 px-2 py-1 text-center text-[10px] font-bold uppercase w-28">
-                  Preço Unit.
-                </th>
-                <th className="border border-gray-400 bg-gray-100 px-2 py-1 text-center text-[10px] font-bold uppercase w-28">
-                  Subtotal
-                </th>
-                <th className="border border-gray-400 bg-gray-100 px-2 py-1 text-left text-[10px] font-bold uppercase">
-                  Observação
-                </th>
-                {/* Delete col — hidden on print */}
-                <th className="no-print border border-gray-400 bg-gray-100 w-8" />
-              </tr>
-            </thead>
-            <tbody>
-              {fields.map((field, index) => (
-                <tr key={field.id} className="hover:bg-gray-50">
-                  <td className="border border-gray-300 px-2 py-1 text-center text-xs text-gray-400 select-none">
-                    {index + 1}
-                  </td>
-                  <td className="border border-gray-300 px-1 py-0.5">
-                    <FichaInput
-                      {...register(`itens.${index}.nome`)}
-                      placeholder="Nome da peça"
+            {/* ── Veículo/Placa + Tipo row 1 ───────────────────────────── */}
+            <tr>
+              <td colSpan={2} rowSpan={2} className={`${cell} p-1.5 align-top`}>
+                <div className={hdr}>VEÍCULO/PLACA:</div>
+                <LineInput {...register("veiculoPlaca")} className="mt-1 border-b border-gray-400" />
+              </td>
+              <td colSpan={2} className={`${cell} p-1.5`}>
+                <div className="flex items-center gap-5">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      value="particular_loja"
+                      {...register("tipo")}
+                      className="accent-black"
                     />
-                  </td>
-                  <td className="border border-gray-300 px-1 py-0.5">
-                    <FichaInput
-                      {...register(`itens.${index}.quantidade`)}
-                      inputMode="numeric"
-                      placeholder="1"
-                      className="text-center"
+                    <span className={hdr}>PARTICULAR LOJA</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      value="loja"
+                      {...register("tipo")}
+                      className="accent-black"
                     />
-                  </td>
-                  <td className="border border-gray-300 px-1 py-0.5">
-                    <FichaInput
-                      {...register(`itens.${index}.precoUnitario`)}
-                      inputMode="decimal"
-                      placeholder="0,00"
-                      className="text-right"
+                    <span className={hdr}>LOJA</span>
+                  </label>
+                </div>
+              </td>
+            </tr>
+
+            {/* ── Tipo row 2 ────────────────────────────────────────────── */}
+            <tr>
+              <td colSpan={2} className={`${cell} p-1.5`}>
+                <div className="flex items-center gap-5">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      value="consignado"
+                      {...register("tipo")}
+                      className="accent-black"
                     />
-                  </td>
-                  <td className="border border-gray-300 px-2 py-1 text-right text-xs tabular-nums font-medium">
-                    {brl(subtotais[index] ?? 0)}
-                  </td>
-                  <td className="border border-gray-300 px-1 py-0.5">
-                    <FichaInput
-                      {...register(`itens.${index}.observacao`)}
-                      placeholder="—"
+                    <span className={hdr}>CONSIGNADO</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      value="fazenda"
+                      {...register("tipo")}
+                      className="accent-black"
                     />
-                  </td>
-                  <td className="no-print border border-gray-300 px-1 py-0.5 text-center">
-                    <button
-                      type="button"
-                      onClick={() => remove(index)}
-                      disabled={fields.length === 1}
-                      className="text-red-400 hover:text-red-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                      title="Remover item"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <span className={hdr}>FAZENDA</span>
+                  </label>
+                </div>
+              </td>
+            </tr>
 
-          <button
-            type="button"
-            onClick={() =>
-              append({ nome: "", quantidade: "1", precoUnitario: "", observacao: "" })
-            }
-            className="no-print mt-2 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-semibold transition-colors"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Adicionar item
-          </button>
-        </div>
-
-        <hr className="border-gray-300 mb-3" />
-
-        {/* Summary row */}
-        <div className="grid grid-cols-3 gap-4 mb-4 text-sm">
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-gray-500 mb-0.5 tracking-wide">
-              Dias p/ entrega
-            </label>
-            <FichaInput
-              {...register("diasEntrega")}
-              inputMode="numeric"
-              placeholder="—"
-            />
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-gray-500 mb-0.5 tracking-wide">
-              Frete (R$)
-            </label>
-            <FichaInput
-              {...register("frete")}
-              inputMode="decimal"
-              placeholder="0,00"
-              className="text-right"
-            />
-          </div>
-          <div className="flex flex-col justify-end">
-            <span className="text-[10px] font-bold uppercase text-gray-500 tracking-wide">
-              Preço Total
-            </span>
-            <span className="text-xl font-extrabold tabular-nums text-gray-900 leading-tight">
-              {brl(totalGeral)}
-            </span>
-          </div>
-        </div>
-
-        <hr className="border-gray-300 mb-3" />
-
-        {/* Payment */}
-        <div className="mb-4 text-sm">
-          <p className="text-[10px] font-bold uppercase text-gray-500 tracking-wide mb-2">
-            Forma de Pagamento
-          </p>
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-            {(
-              [
-                ["pgAVista", "À vista"],
-                ["pgPix", "Pix"],
-                ["pgCredito", "Crédito"],
-              ] as const
-            ).map(([name, label]) => (
-              <label key={name} className="flex items-center gap-1.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  {...register(name)}
-                  className="accent-blue-600 h-3.5 w-3.5"
+            {/* ── Items header (FORNECEDOR rowspan covers header + all item rows) */}
+            <tr>
+              <td
+                rowSpan={fields.length + 1}
+                className={`${cell} p-1.5 align-top w-[22%]`}
+              >
+                <div className={hdr}>FORNECEDOR:</div>
+                <textarea
+                  {...register("fornecedor")}
+                  rows={Math.max(fields.length, 3)}
+                  className="mt-1 w-full bg-transparent focus:outline-none text-xs resize-none leading-relaxed"
                 />
-                <span>{label}</span>
-              </label>
+              </td>
+              <td className={`${cell} p-1.5 ${hdr}`}>NOME DA PEÇA:</td>
+              <td className={`${cell} p-1.5 ${hdr} text-center w-[20%]`}>PREÇO UNITÁRIO</td>
+              <td className={`${cell} p-1.5 ${hdr} text-center w-[20%]`}>PREÇO SUBTOTAL</td>
+            </tr>
+
+            {/* ── Item rows (dynamic) ───────────────────────────────────── */}
+            {fields.map((field, index) => (
+              <tr key={field.id} className="group">
+                {/* NOME DA PEÇA — delete button overlaid, hidden on print */}
+                <td className={`${cell} px-1.5 py-1 relative`}>
+                  <LineInput
+                    {...register(`itens.${index}.nome`)}
+                    className="pr-5"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => remove(index)}
+                    disabled={fields.length <= 1}
+                    className="no-print absolute right-1 top-1/2 -translate-y-1/2 text-red-300 hover:text-red-600 disabled:opacity-20 opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Remover linha"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </td>
+                <td className={`${cell} px-1.5 py-1`}>
+                  <LineInput
+                    {...register(`itens.${index}.precoUnitario`)}
+                    inputMode="decimal"
+                    placeholder="0,00"
+                    className="text-right"
+                  />
+                </td>
+                <td className={`${cell} px-1.5 py-1`}>
+                  <LineInput
+                    {...register(`itens.${index}.precoSubtotal`)}
+                    inputMode="decimal"
+                    placeholder="0,00"
+                    className="text-right"
+                  />
+                </td>
+              </tr>
             ))}
 
-            <label className="flex items-center gap-1.5 cursor-pointer">
-              <input
-                type="checkbox"
-                {...register("pgParcelado")}
-                className="accent-blue-600 h-3.5 w-3.5"
-              />
-              <span>Parcelado em</span>
-            </label>
-            <div className="flex items-center gap-1">
-              <input
-                {...register("pgParceladoQtd")}
-                type="number"
-                min="1"
-                max="24"
-                disabled={!pgParcelado}
-                placeholder="—"
-                className="w-12 bg-transparent border-b border-gray-400 text-center text-sm focus:outline-none focus:border-blue-500 disabled:opacity-40 transition-opacity"
-              />
-              <span>vezes</span>
-            </div>
+            {/* ── Add line button (hidden on print) ────────────────────── */}
+            <tr className="no-print">
+              <td colSpan={4} className="px-2 py-1 bg-gray-50">
+                <button
+                  type="button"
+                  onClick={() =>
+                    append({ nome: "", precoUnitario: "", precoSubtotal: "" })
+                  }
+                  className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-semibold"
+                >
+                  <Plus className="h-3 w-3" />
+                  Adicionar linha
+                </button>
+              </td>
+            </tr>
 
-            <label className="flex items-center gap-1.5 cursor-pointer">
-              <input
-                type="checkbox"
-                {...register("pgParceladoCredito")}
-                className="accent-blue-600 h-3.5 w-3.5"
-              />
-              <span>Parcelado Crédito</span>
-            </label>
-          </div>
-        </div>
+            {/* ── Dias / Frete / Total ──────────────────────────────────── */}
+            <tr>
+              <td className={`${cell} p-1.5`}>
+                <div className={hdr}>DIAS P/ ENTREGA:</div>
+                <LineInput
+                  {...register("diasEntrega")}
+                  inputMode="numeric"
+                  className="mt-1 border-b border-gray-400"
+                />
+              </td>
+              <td className={`${cell} p-1.5`} />
+              <td className={`${cell} p-1.5`}>
+                <div className={hdr}>FRETE:</div>
+                <LineInput
+                  {...register("frete")}
+                  inputMode="decimal"
+                  placeholder="0,00"
+                  className="mt-1 text-right border-b border-gray-400"
+                />
+              </td>
+              <td className={`${cell} p-1.5`}>
+                <div className={hdr}>PREÇO TOTAL</div>
+                <div className="mt-1 text-sm font-extrabold tabular-nums text-right">
+                  {brl(totalGeral)}
+                </div>
+              </td>
+            </tr>
 
-        {/* Observations */}
-        <div className="mb-5 text-sm">
-          <label className="block text-[10px] font-bold uppercase text-gray-500 tracking-wide mb-1">
-            Observações
-          </label>
-          <textarea
-            {...register("observacoes")}
-            rows={3}
-            placeholder="Observações gerais sobre o orçamento..."
-            className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500 resize-none"
-          />
-        </div>
+            {/* ── Formas de pagamento ───────────────────────────────────── */}
+            <tr>
+              <td className={`${cell} p-1.5 align-top`}>
+                <div className={hdr}>FORMAS DE PAGAMENTO:</div>
+                {/* Signature line in the payment cell, matching the physical form */}
+                <div className="mt-8 border-t border-black w-full" />
+              </td>
 
-        <hr className="border-gray-300 mb-4" />
+              <td colSpan={2} className={`${cell} p-1.5 align-top space-y-1.5`}>
+                {/* PARCELADO EM QUANTAS VEZES */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <input
+                    type="checkbox"
+                    {...register("pgParcelado")}
+                    className="h-3 w-3 accent-black"
+                  />
+                  <span className={hdr}>PARCELADO EM QUANTAS VEZES</span>
+                  <input
+                    {...register("pgParceladoQtd")}
+                    maxLength={2}
+                    inputMode="numeric"
+                    disabled={!pgParcelado}
+                    className="w-8 border-b border-black bg-transparent text-xs text-center focus:outline-none disabled:opacity-30"
+                  />
+                </div>
 
-        {/* Signatures */}
-        <div className="grid grid-cols-5 gap-3 text-sm">
-          {(
-            [
-              ["assServico", "Ass. Serviço"],
-              ["assPagamento", "Ass. Pagamento"],
-              ["assPreparacao", "Preparação"],
-              ["assPosVenda", "Pós-Venda"],
-              ["assData", "Data"],
-            ] as const
-          ).map(([name, label]) => (
-            <div key={name} className="flex flex-col">
-              <div className="h-10 flex items-end">
-                <FichaInput {...register(name)} className="text-center" />
-              </div>
-              <span className="mt-1.5 text-center text-[10px] font-semibold uppercase text-gray-500 tracking-wide border-t border-gray-400 pt-1">
-                {label}
-              </span>
-            </div>
-          ))}
-        </div>
+                {/* A VISTA / CRÉDITO */}
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      {...register("pgAVista")}
+                      className="h-3 w-3 accent-black"
+                    />
+                    <span className={hdr}>A VISTA</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      {...register("pgCredito")}
+                      className="h-3 w-3 accent-black"
+                    />
+                    <span className={hdr}>CRÉDITO</span>
+                  </label>
+                </div>
 
+                {/* PARCELADO CRÉDITO */}
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    {...register("pgParceladoCredito")}
+                    className="h-3 w-3 accent-black"
+                  />
+                  <span className={hdr}>PARCELADO CRÉDITO:</span>
+                  <span className="flex-1 border-b border-black" />
+                </div>
+              </td>
+
+              <td className={`${cell} p-1.5 align-top`}>
+                <div className={hdr}>OBS.:</div>
+                <textarea
+                  {...register("observacoes")}
+                  rows={4}
+                  className="mt-0.5 w-full bg-transparent focus:outline-none text-xs resize-none"
+                />
+              </td>
+            </tr>
+
+            {/* ── Assinaturas ───────────────────────────────────────────── */}
+            <tr>
+              {/* ASS. SERVIÇO */}
+              <td className={`${cell} p-1.5`}>
+                <div className="h-7 flex items-end">
+                  <LineInput
+                    {...register("assServico")}
+                    className="border-b border-gray-400"
+                  />
+                </div>
+                <div className={`mt-0.5 ${hdr} text-center`}>ASS. SERVIÇO</div>
+              </td>
+
+              {/* ASS. PAGAMENTO */}
+              <td className={`${cell} p-1.5`}>
+                <div className="h-7 flex items-end">
+                  <LineInput
+                    {...register("assPagamento")}
+                    className="border-b border-gray-400"
+                  />
+                </div>
+                <div className={`mt-0.5 ${hdr} text-center`}>ASS. PAGAMENTO</div>
+              </td>
+
+              {/* PREPARAÇÃO / PÓS VENDA checkboxes */}
+              <td className={`${cell} p-1.5 space-y-1`}>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    {...register("preparacao")}
+                    className="h-3.5 w-3.5 accent-black"
+                  />
+                  <span className={hdr}>PREPARAÇÃO</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    {...register("posVenda")}
+                    className="h-3.5 w-3.5 accent-black"
+                  />
+                  <span className={hdr}>PÓS VENDA</span>
+                </label>
+              </td>
+
+              {/* Date */}
+              <td className={`${cell} p-1.5 text-center`}>
+                <div className="h-7 flex items-end justify-center gap-0.5">
+                  {dateInput("dataAssDia", 2, "w-5")}
+                  <span>/</span>
+                  {dateInput("dataAssMes", 2, "w-5")}
+                  <span>/</span>
+                  {dateInput("dataAssAno", 4, "w-9")}
+                </div>
+              </td>
+            </tr>
+
+          </tbody>
+        </table>
       </div>
     </div>
   );
