@@ -130,6 +130,13 @@
 }
 
 @media print {
+  /* Remove layout constraints so the print-area can flow normally */
+  html, body {
+    height: auto !important;
+    overflow: visible !important;
+    background: white !important;
+  }
+
   body * {
     visibility: hidden;
   }
@@ -138,8 +145,10 @@
     visibility: visible;
   }
   .print-area {
-    position: fixed;
-    inset: 0;
+    /* Static positioning avoids the blank first-page bug on Android/mobile */
+    position: static !important;
+    display: block;
+    width: 100%;
     margin: 0;
     padding: 1.5cm 2cm;
     background: white;

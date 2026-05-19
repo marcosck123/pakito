@@ -54,78 +54,115 @@ function RequisicaoPreview({
 }) {
   const itens = values.itens ?? [];
   const total = totalGeral(itens);
+  const cell = "border border-black";
+  const hdr = "font-bold uppercase text-[10px] tracking-wide";
 
   return (
-    <div className="print-area rounded-lg border border-gray-300 bg-white p-6 text-sm leading-relaxed">
-      <div className="mb-5 border-b border-gray-800 pb-3 text-center">
-        <p className="text-xs uppercase tracking-widest text-gray-500">Referência: {cotacaoCodigo}</p>
-        <h1 className="mt-1 text-base font-bold uppercase tracking-widest">Requisição de Compra</h1>
-      </div>
+    <div className="print-area bg-white border-2 border-black">
+      <table className="w-full border-collapse text-xs">
+        <tbody>
 
-      <div className="mb-4 grid grid-cols-2 gap-x-8 gap-y-1">
-        <p><span className="font-semibold">Nº:</span> {values.numero || "—"}</p>
-        <p><span className="font-semibold">Data:</span> {fmtDate(values.data)}</p>
-        <p><span className="font-semibold">Solicitante da peça:</span> {values.solicitante || "—"}</p>
-        <p><span className="font-semibold">Responsável / Dono:</span> {values.responsavel || "—"}</p>
-      </div>
+          {/* Referência */}
+          <tr>
+            <td colSpan={6} className={`${cell} py-1 text-center text-[10px] uppercase tracking-widest`}>
+              Referência: {cotacaoCodigo}
+            </td>
+          </tr>
 
-      <div className="mb-4 overflow-x-auto">
-        <table className="w-full border-collapse text-xs">
-          <thead>
-            <tr className="border-b-2 border-gray-800">
-              <th className="py-1.5 pr-3 text-left font-semibold">Item</th>
-              <th className="py-1.5 pr-3 text-left font-semibold">Peça</th>
-              <th className="py-1.5 px-3 text-center font-semibold">Qtd</th>
-              <th className="py-1.5 px-3 text-right font-semibold">Valor Unit.</th>
-              <th className="py-1.5 px-3 text-right font-semibold">Valor Total</th>
-              <th className="py-1.5 pl-3 text-left font-semibold">Observação</th>
+          {/* Título */}
+          <tr>
+            <td colSpan={6} className={`${cell} py-1.5 text-center ${hdr} text-sm`}>
+              REQUISIÇÃO DE COMPRA
+            </td>
+          </tr>
+
+          {/* Nº / Data */}
+          <tr>
+            <td colSpan={3} className={`${cell} p-1.5`}>
+              <span className={hdr}>Nº:</span>
+              <span className="ml-1">{values.numero || "—"}</span>
+            </td>
+            <td colSpan={3} className={`${cell} p-1.5`}>
+              <span className={hdr}>Data:</span>
+              <span className="ml-1">{fmtDate(values.data)}</span>
+            </td>
+          </tr>
+
+          {/* Solicitante / Responsável */}
+          <tr>
+            <td colSpan={3} className={`${cell} p-1.5`}>
+              <span className={hdr}>Solicitante da peça:</span>
+              <span className="ml-1">{values.solicitante || "—"}</span>
+            </td>
+            <td colSpan={3} className={`${cell} p-1.5`}>
+              <span className={hdr}>Responsável / Dono:</span>
+              <span className="ml-1">{values.responsavel || "—"}</span>
+            </td>
+          </tr>
+
+          {/* Cabeçalho de itens */}
+          <tr>
+            <td className={`${cell} p-1 ${hdr} text-center w-8`}>Item</td>
+            <td className={`${cell} p-1 ${hdr}`}>Peça</td>
+            <td className={`${cell} p-1 ${hdr} text-center w-10`}>Qtd</td>
+            <td className={`${cell} p-1 ${hdr} text-right w-24`}>Valor Unit.</td>
+            <td className={`${cell} p-1 ${hdr} text-right w-24`}>Valor Total</td>
+            <td className={`${cell} p-1 ${hdr}`}>Observação</td>
+          </tr>
+
+          {/* Linhas de itens */}
+          {itens.length === 0 ? (
+            <tr>
+              <td colSpan={6} className={`${cell} py-3 text-center text-gray-400`}>
+                Nenhum item adicionado
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {itens.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="py-4 text-center text-gray-400">Nenhum item adicionado</td>
+          ) : (
+            itens.map((item, i) => (
+              <tr key={item.id}>
+                <td className={`${cell} p-1 text-center`}>{pad(i + 1)}</td>
+                <td className={`${cell} p-1 font-medium`}>{item.peca || "—"}</td>
+                <td className={`${cell} p-1 text-center`}>{item.quantidade || 0}</td>
+                <td className={`${cell} p-1 text-right tabular-nums`}>{formatCurrency(Number(item.valorUnitario) || 0)}</td>
+                <td className={`${cell} p-1 text-right font-bold tabular-nums`}>{formatCurrency(itemTotal(item))}</td>
+                <td className={`${cell} p-1`}>{item.observacao || "—"}</td>
               </tr>
-            ) : (
-              itens.map((item, i) => (
-                <tr key={item.id} className="border-b border-gray-200">
-                  <td className="py-1.5 pr-3">{pad(i + 1)}</td>
-                  <td className="py-1.5 pr-3 font-medium">{item.peca || <span className="text-gray-300">—</span>}</td>
-                  <td className="py-1.5 px-3 text-center">{item.quantidade || 0}</td>
-                  <td className="py-1.5 px-3 text-right">{formatCurrency(Number(item.valorUnitario) || 0)}</td>
-                  <td className="py-1.5 px-3 text-right font-semibold">{formatCurrency(itemTotal(item))}</td>
-                  <td className="py-1.5 pl-3 text-gray-600">{item.observacao || "—"}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-          <tfoot>
-            <tr className="border-t-2 border-gray-800">
-              <td colSpan={4} className="py-2 font-bold">Valor total geral</td>
-              <td className="py-2 text-right font-bold">{formatCurrency(total)}</td>
-              <td />
+            ))
+          )}
+
+          {/* Total geral */}
+          <tr>
+            <td colSpan={4} className={`${cell} p-1 ${hdr}`}>VALOR TOTAL GERAL</td>
+            <td className={`${cell} p-1 text-right font-bold tabular-nums`}>{formatCurrency(total)}</td>
+            <td className={`${cell} p-1`} />
+          </tr>
+
+          {/* Observação geral */}
+          {values.observacaoGeral && (
+            <tr>
+              <td colSpan={6} className={`${cell} p-1.5`}>
+                <span className={hdr}>Observação geral:</span>
+                <span className="ml-1">{values.observacaoGeral}</span>
+              </td>
             </tr>
-          </tfoot>
-        </table>
-      </div>
+          )}
 
-      {values.observacaoGeral && (
-        <div className="mb-6">
-          <p className="font-semibold">Observação geral:</p>
-          <p className="mt-1 text-gray-700">{values.observacaoGeral}</p>
-        </div>
-      )}
+          {/* Assinaturas */}
+          <tr>
+            <td colSpan={3} className={`${cell} px-2 pt-10 pb-1 text-center`}>
+              <div className="border-t border-black pt-0.5">
+                <span className="text-[10px] text-gray-500">Assinatura do solicitante da peça</span>
+              </div>
+            </td>
+            <td colSpan={3} className={`${cell} px-2 pt-10 pb-1 text-center`}>
+              <div className="border-t border-black pt-0.5">
+                <span className="text-[10px] text-gray-500">Assinatura do responsável / dono</span>
+              </div>
+            </td>
+          </tr>
 
-      <div className="mt-10 grid grid-cols-2 gap-12">
-        <div>
-          <div className="border-b border-gray-800" />
-          <p className="mt-1.5 text-center text-xs text-gray-500">Assinatura do solicitante da peça</p>
-        </div>
-        <div>
-          <div className="border-b border-gray-800" />
-          <p className="mt-1.5 text-center text-xs text-gray-500">Assinatura do responsável / dono</p>
-        </div>
-      </div>
+        </tbody>
+      </table>
     </div>
   );
 }
