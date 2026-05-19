@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { addOrcamento, updateOrcamento } from "@/lib/mock-data/orcamentos";
 import { updateFornecedorCotacaoStatus, mockCotacoes } from "@/lib/mock-data/cotacoes";
 import { mockFornecedores } from "@/lib/mock-data/fornecedores";
+import { requireSession } from "@/lib/auth/require-session";
 import type { OrcamentoItem, OrcamentoStatus } from "@/types";
 
 function buildItens(rawItens: any[], cotacaoId: string): OrcamentoItem[] {
@@ -25,6 +26,9 @@ function buildItens(rawItens: any[], cotacaoId: string): OrcamentoItem[] {
 }
 
 export async function POST(request: Request) {
+  const { user, error } = await requireSession(["ADMIN", "COMPRAS"]);
+  if (error) return error;
+
   const body = await request.json();
   const itens = buildItens(body.itens ?? [], body.cotacaoId);
   const status: OrcamentoStatus = body.action === "confirmar" ? "PENDENTE_CONFERENCIA" : "EM_PREENCHIMENTO";
@@ -53,6 +57,9 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const { user, error } = await requireSession(["ADMIN", "COMPRAS"]);
+  if (error) return error;
+
   const body = await request.json();
   const itens = buildItens(body.itens ?? [], body.cotacaoId);
   const status: OrcamentoStatus = body.action === "confirmar" ? "PENDENTE_CONFERENCIA" : "EM_PREENCHIMENTO";

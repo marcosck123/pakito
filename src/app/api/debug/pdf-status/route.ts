@@ -6,6 +6,7 @@ import {
   resolvePdfJsWorkerPath,
 } from "@/lib/pdf/extract-text";
 import { setupPdfJsNodePolyfills } from "@/lib/pdf/pdfjs-polyfill";
+import { requireSession } from "@/lib/auth/require-session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,9 +24,11 @@ const TINY_PDF = Buffer.from(
 );
 
 export async function GET() {
+  const { error: authError } = await requireSession(["ADMIN"]);
+  if (authError) return authError;
+
   const timestamp = new Date().toISOString();
 
-  // ── pdfjs-dist version ────────────────────────────────────────────────────
   let pdfjsVersion = "unknown";
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -35,7 +38,6 @@ export async function GET() {
     pdfjsVersion = "package_json_unreadable";
   }
 
-  // ── callable test via the real extraction path ────────────────────────────
   let workerResolved = false;
   let workerPath: string | null = null;
   let workerExists = false;
@@ -43,7 +45,7 @@ export async function GET() {
   try {
     workerPath = resolvePdfJsWorkerPath();
     workerResolved = true;
-    workerExists = fs.existsSync(workerPath);
+    workerExists = workerPath ? fs.existsSync(workerPath) : false;
   } catch {
     workerResolved = false;
     workerExists = false;
@@ -54,11 +56,8 @@ export async function GET() {
   let polyfillApplied = false;
 
   try {
-    // Apply polyfill first so we can report whether it was needed
     await setupPdfJsNodePolyfills();
     polyfillApplied = typeof globalThis.DOMMatrix !== "undefined";
-
-    // Use the same function the parse-pdf endpoint uses — tests the full path
     await extractTextFromPdf(TINY_PDF);
     pdfjsStatus = "callable_ok";
   } catch (err) {
@@ -72,14 +71,6 @@ export async function GET() {
       timestamp,
       runtime: "nodejs",
       nodeVersion: process.version,
-      env: {
-        NODE_ENV: process.env.NODE_ENV,
-        VERCEL: process.env.VERCEL ?? null,
-        VERCEL_ENV: process.env.VERCEL_ENV ?? null,
-        VERCEL_GIT_COMMIT_SHA: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
-        VERCEL_GIT_COMMIT_REF: process.env.VERCEL_GIT_COMMIT_REF ?? null,
-        VERCEL_REGION: process.env.VERCEL_REGION ?? null,
-      },
       pdfjs: {
         status: pdfjsStatus,
         version: pdfjsVersion,
@@ -95,7 +86,7 @@ export async function GET() {
         expectedField: "file",
         expectedMime: "application/pdf",
         reasons422: ["empty_buffer", "pdf_parse_error", "no_selectable_text"],
-        reasons400: ["file_missing", "wrong_mime_type", "form_parse_error"],
+        reasons400: ["file_missing", "wrong_mime_type", "form_parse_error", "file_too_large"],
         softFallback200: "parser_no_items → requiresManualReview=true",
       },
     },

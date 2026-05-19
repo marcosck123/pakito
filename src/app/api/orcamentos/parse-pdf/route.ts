@@ -2,10 +2,13 @@ import { NextResponse } from "next/server";
 import { mockCotacoes } from "@/lib/mock-data/cotacoes";
 import { parseOrcamentoPdf } from "@/lib/pdf/parser";
 import { extractTextFromPdf } from "@/lib/pdf/extract-text";
+import { requireSession } from "@/lib/auth/require-session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 type Diagnostics = {
   requestId: string;
@@ -23,6 +26,9 @@ type Diagnostics = {
 };
 
 export async function POST(request: Request) {
+  const { error: authError } = await requireSession(["ADMIN", "COMPRAS"]);
+  if (authError) return authError;
+
   const requestId = crypto.randomUUID();
 
   const diag: Diagnostics = {
@@ -71,7 +77,6 @@ export async function POST(request: Request) {
   }
 
   try {
-    // ── FormData ──────────────────────────────────────────────────────────
     diag.step = "formdata_read";
     log("reading_formdata");
 
@@ -83,7 +88,6 @@ export async function POST(request: Request) {
       return errorResponse(400, "Requisição inválida — não foi possível ler o formulário.", "form_parse_error");
     }
 
-    // ── File ──────────────────────────────────────────────────────────────
     diag.step = "file_received";
     const file = formData.get("file") as File | null;
     const cotacaoId = formData.get("cotacaoId") as string | null;
@@ -109,7 +113,14 @@ export async function POST(request: Request) {
       );
     }
 
-    // ── Buffer ────────────────────────────────────────────────────────────
+    if (file.size > MAX_FILE_SIZE) {
+      return errorResponse(
+        400,
+        `O arquivo excede o tamanho máximo permitido (10 MB). Tamanho recebido: ${(file.size / 1024 / 1024).toFixed(1)} MB.`,
+        "file_too_large"
+      );
+    }
+
     diag.step = "buffer_created";
     const buffer = Buffer.from(await file.arrayBuffer());
     diag.bufferLength = buffer.length;
@@ -119,7 +130,6 @@ export async function POST(request: Request) {
       return errorResponse(400, "O arquivo chegou vazio no servidor.", "empty_buffer");
     }
 
-    // ── pdfjs-dist ────────────────────────────────────────────────────────
     diag.step = "pdf_parse_started";
     log("pdf_parse_started");
 
@@ -139,7 +149,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // ── Text validation ───────────────────────────────────────────────────
     diag.step = "text_validation";
     const textLength = text.replace(/\s/g, "").length;
     const textPreview = text.slice(0, 500);
@@ -155,7 +164,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // ── Parser ────────────────────────────────────────────────────────────
     diag.step = "parser_started";
     log("parser_started");
 
@@ -185,7 +193,6 @@ export async function POST(request: Request) {
       itemsFound: diag.itemsFound,
     };
 
-    // ── Soft: text OK but no items detected ───────────────────────────────
     if (itens.length === 0) {
       diag.step = "response_success";
       diag.reason = "parser_no_items";

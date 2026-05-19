@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { updateItemEntrega } from "@/lib/mock-data/requisicoes";
+import { requireSession } from "@/lib/auth/require-session";
 import type { RequisicaoItem, ItemEntregaStatus, CondicaoPeca } from "@/types";
 
 export async function PATCH(request: Request) {
+  const { error } = await requireSession(["ADMIN", "COMPRAS", "RECEBIMENTO"]);
+  if (error) return error;
+
   const body = await request.json() as {
     requisicaoId: string;
     itemId: string;
