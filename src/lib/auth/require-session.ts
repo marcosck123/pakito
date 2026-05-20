@@ -1,29 +1,17 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { getSession } from "@/lib/auth/session";
 import type { User, UserRole } from "@/types";
-import { mockUsers } from "@/lib/mock-data/users";
-
-const SESSION_COOKIE = "cotacoes_session";
 
 export async function requireSession(allowedRoles?: UserRole[]): Promise<
   | { user: User; error: null }
   | { user: null; error: NextResponse }
 > {
-  const cookieStore = await cookies();
-  const userId = cookieStore.get(SESSION_COOKIE)?.value;
+  const user = await getSession();
 
-  if (!userId) {
-    return {
-      user: null,
-      error: NextResponse.json({ error: "Não autenticado" }, { status: 401 }),
-    };
-  }
-
-  const user = mockUsers.find((u) => u.id === userId && u.ativo);
   if (!user) {
     return {
       user: null,
-      error: NextResponse.json({ error: "Sessão inválida" }, { status: 401 }),
+      error: NextResponse.json({ error: "Não autenticado" }, { status: 401 }),
     };
   }
 
