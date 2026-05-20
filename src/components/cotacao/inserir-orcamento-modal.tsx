@@ -446,6 +446,16 @@ export function InserirOrcamentoModal({
     try {
       // Run OCR entirely in browser — avoids serverless timeouts
       const { createWorker } = await import("tesseract.js");
+      const { preprocessImageForOcr } = await import("@/lib/ocr/preprocess-image");
+
+      // Preprocess: grayscale + contrast boost + sharpening + upscale
+      let ocrSource: Blob | File;
+      try {
+        ocrSource = await preprocessImageForOcr(imageFile);
+      } catch {
+        ocrSource = imageFile; // fallback to original if canvas fails
+      }
+
       const worker = await createWorker(["por", "eng"], 1, {
         logger: (m: { status: string; progress: number }) => {
           if (m.status === "recognizing text") {
@@ -454,7 +464,10 @@ export function InserirOrcamentoModal({
         },
       });
 
-      const imageUrl = URL.createObjectURL(imageFile);
+      // PSM 6 = assume single uniform block of text (works well for receipts/quotes)
+      await worker.setParameters({ tessedit_pageseg_mode: "6" as any });
+
+      const imageUrl = URL.createObjectURL(ocrSource);
       const { data: { text } } = await worker.recognize(imageUrl);
       await worker.terminate();
       URL.revokeObjectURL(imageUrl);
