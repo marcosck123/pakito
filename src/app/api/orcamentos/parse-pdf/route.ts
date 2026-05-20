@@ -175,7 +175,7 @@ export async function POST(request: Request) {
         codigoOriginal: ci.peca?.codigoOriginal,
       })) ?? [];
 
-    const { itens, freteDetectado } = parseOrcamentoPdf(text, cotacaoItens);
+    const { itens, freteDetectado, descontoDetectado } = parseOrcamentoPdf(text, cotacaoItens);
 
     diag.step = "parser_success";
     diag.itemsFound = itens.length;
@@ -205,6 +205,7 @@ export async function POST(request: Request) {
           "Texto extraído, mas nenhum item foi identificado automaticamente. Use a inserção manual assistida.",
         itens: [],
         freteDetectado,
+        descontoDetectado,
         rawText: text,
         debug: { ...debugBase, itemsFound: 0 },
       });
@@ -220,6 +221,7 @@ export async function POST(request: Request) {
       message: "Itens extraídos. Confira antes de confirmar.",
       itens,
       freteDetectado,
+      descontoDetectado,
       rawText: text,
       debug: debugBase,
     });

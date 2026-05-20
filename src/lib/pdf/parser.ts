@@ -14,6 +14,7 @@ export interface ExtractedItem {
 export interface ParsedPdf {
   itens: ExtractedItem[];
   freteDetectado: number | null;
+  descontoDetectado: number | null;
   debugParser?: {
     normalizedLength: number;
     mainTextPreview: string;
@@ -61,7 +62,7 @@ const CONTINUOUS_ROW_RE = new RegExp(
   "giu"
 );
 const TABLE_HEADER_RE =
-  /[\s\S]*?\bItem\s+Descri[cç][aã]o(?:\s+da\s+pe[cç]a)?\s+Marca\s+Qtd\s+Valor\s+unit\.?(?:ario)?\s+Valor\s+total/i;
+  /[\s\S]*?(?:\bItem\s+Descri[cç][aã]o(?:\s+da\s+pe[cç]a)?\s+Marca\s+Qtd\s+Valor\s+unit\.?(?:ario)?\s+Valor\s+total|\bITEM\s+NOME\s+DA\s+PE[CÇ]A\s+MARCA\s+QTD\s+V\.?\s*UNIT\.?\s+SUBTOTAL)/i;
 const TABLE_STOP_RE = /\b(?:OPCIONAIS?|Frete:?|Desconto:?|Total\b|Prazo:?)\b/i;
 
 // ─── BRL helpers ─────────────────────────────────────────────────────────────
@@ -346,10 +347,14 @@ function parseContinuousItems(
   mainText: string,
   cotacaoItens: CotacaoItemSimple[]
 ): ExtractedItem[] {
+  // Collapse single newlines into spaces so CONTINUOUS_ROW_RE can match
+  // rows that Tesseract split across multiple lines (common in photo OCR).
+  const flatText = mainText.replace(/\n/g, " ").replace(/\s{2,}/g, " ");
+
   const itens: ExtractedItem[] = [];
   CONTINUOUS_ROW_RE.lastIndex = 0;
 
-  for (const match of mainText.matchAll(CONTINUOUS_ROW_RE)) {
+  for (const match of flatText.matchAll(CONTINUOUS_ROW_RE)) {
     const item = buildContinuousItem(
       {
         codigo: match[1],
@@ -379,7 +384,7 @@ function parseContinuousItems(
     "iu"
   );
 
-  const chunks = mainText
+  const chunks = flatText
     .split(/(?=\b\d{2,3}\s+[A-Za-zÀ-ÿ])/u)
     .map((s) => s.trim())
     .filter(Boolean);
@@ -405,6 +410,17 @@ function parseContinuousItems(
   }
 
   return itens;
+}
+
+function detectDescontoValue(normalizedText: string): number | null {
+  // Matches "DESCONTO PIX: - R$ 35,00" or "Desconto: R$ 35,00" (value is always positive)
+  const re = new RegExp("\\bdesconto\\b[^\\n]{0,80}?-?\\s*(" + MONEY_SOURCE + ")", "iu");
+  const match = normalizedText.match(re);
+  if (match) {
+    const value = parseBRL(match[1]);
+    if (value !== null && value > 0) return value;
+  }
+  return null;
 }
 
 function detectFreteValue(normalizedText: string, lines: string[]): number | null {
@@ -440,6 +456,7 @@ export function parseOrcamentoPdf(
     .filter((l) => l.length > 4);
 
   const freteDetectado = detectFreteValue(normalizedText, lines);
+  const descontoDetectado = detectDescontoValue(normalizedText);
   const continuousItems = parseContinuousItems(mainText, cotacaoItens);
   const debugParser = {
     normalizedLength: normalizedText.length,
@@ -448,7 +465,7 @@ export function parseOrcamentoPdf(
   };
 
   if (continuousItems.length > 0) {
-    return { itens: continuousItems, freteDetectado, debugParser };
+    return { itens: continuousItems, freteDetectado, descontoDetectado, debugParser };
   }
 
   const itens: ExtractedItem[] = [];
@@ -507,6 +524,7 @@ export function parseOrcamentoPdf(
   return {
     itens,
     freteDetectado,
+    descontoDetectado,
     debugParser: {
       ...debugParser,
       itemsFound: itens.length,
