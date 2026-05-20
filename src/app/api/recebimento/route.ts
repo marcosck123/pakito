@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { updateItemEntrega } from "@/lib/mock-data/requisicoes";
+import { getRequisicao, updateRequisicao } from "@/lib/db/requisicoes-repo";
+import { logAudit } from "@/lib/db/audit-repo";
 import { requireSession } from "@/lib/auth/require-session";
-import type { RequisicaoItem, ItemEntregaStatus, CondicaoPeca } from "@/types";
+import type { RequisicaoItem, ItemEntregaStatus, CondicaoPeca, RequisicaoStatus } from "@/types";
 
 export async function PATCH(request: Request) {
   const { user, error } = await requireSession(["ADMIN", "COMPRAS", "RECEBIMENTO"]);
@@ -18,10 +19,17 @@ export async function PATCH(request: Request) {
 
   const today = new Date().toISOString();
   const quemRecebeu = user!.nome;
-  let update: Partial<RequisicaoItem>;
+
+  const requisicao = await getRequisicao(body.requisicaoId);
+  if (!requisicao) return NextResponse.json({ error: "Requisição não encontrada" }, { status: 404 });
+
+  const itemIndex = requisicao.itens.findIndex((i) => i.id === body.itemId);
+  if (itemIndex < 0) return NextResponse.json({ error: "Item não encontrado" }, { status: 404 });
+
+  let itemUpdate: Partial<RequisicaoItem>;
 
   if (body.action === "RECEBIDA") {
-    update = {
+    itemUpdate = {
       statusEntrega: "RECEBIDA" as ItemEntregaStatus,
       quantidadeRecebida: body.quantidadeRecebida,
       dataRecebimento: today,
@@ -29,7 +37,7 @@ export async function PATCH(request: Request) {
       condicaoPeca: "OK",
     };
   } else if (body.action === "PARCIAL") {
-    update = {
+    itemUpdate = {
       statusEntrega: "RECEBIDA_PARCIALMENTE" as ItemEntregaStatus,
       quantidadeRecebida: body.quantidadeRecebida ?? 0,
       dataRecebimento: today,
@@ -37,7 +45,7 @@ export async function PATCH(request: Request) {
       observacaoRecebimento: body.observacao,
     };
   } else {
-    update = {
+    itemUpdate = {
       statusEntrega: "COM_PROBLEMA" as ItemEntregaStatus,
       dataRecebimento: today,
       quemRecebeu,
@@ -46,8 +54,28 @@ export async function PATCH(request: Request) {
     };
   }
 
-  const ok = updateItemEntrega(body.requisicaoId, body.itemId, update);
-  if (!ok) return NextResponse.json({ error: "Item não encontrado" }, { status: 404 });
+  const updatedItens = requisicao.itens.map((item, idx) =>
+    idx === itemIndex ? { ...item, ...itemUpdate } : item
+  );
+
+  const allReceived = updatedItens.every((i) => i.statusEntrega === "RECEBIDA");
+  const anyReceived = updatedItens.some((i) =>
+    ["RECEBIDA", "RECEBIDA_PARCIALMENTE"].includes(i.statusEntrega)
+  );
+
+  let novoStatus: RequisicaoStatus = requisicao.status;
+  if (allReceived) novoStatus = "RECEBIDA";
+  else if (anyReceived) novoStatus = "PARCIALMENTE_RECEBIDA";
+
+  await updateRequisicao(body.requisicaoId, {
+    itens: updatedItens,
+    status: novoStatus,
+  });
+
+  await logAudit("requisicao", body.requisicaoId, "UPDATE", user!.id, {
+    itemId: body.itemId,
+    action: body.action,
+  });
 
   return NextResponse.json({ ok: true });
 }

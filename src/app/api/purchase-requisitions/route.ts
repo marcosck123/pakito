@@ -1,12 +1,22 @@
 import { NextResponse } from "next/server";
-import { upsert } from "@/lib/mock-data/purchase-requisitions";
+import { upsertPurchaseRequisition } from "@/lib/db/purchase-requisitions-repo";
+import { logAudit } from "@/lib/db/audit-repo";
 import { requireSession } from "@/lib/auth/require-session";
 
 export async function POST(request: Request) {
-  const { error } = await requireSession(["ADMIN", "COMPRAS", "SOLICITANTE"]);
+  const { user, error } = await requireSession(["ADMIN", "COMPRAS", "SOLICITANTE"]);
   if (error) return error;
 
   const body = await request.json();
-  const result = upsert(body);
-  return NextResponse.json(result);
+
+  try {
+    const result = await upsertPurchaseRequisition(body);
+    await logAudit("purchase_requisition", result.id, "CREATE", user!.id);
+    return NextResponse.json(result);
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Erro ao salvar requisição de compra." },
+      { status: 500 }
+    );
+  }
 }

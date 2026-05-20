@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { getSession } from "@/lib/auth/session";
-import { mockCotacoes } from "@/lib/mock-data/cotacoes";
+import { getCotacoes } from "@/lib/db/cotacoes-repo";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { cotacaoStatusLabel, cotacaoStatusColor, urgenciaLabel, urgenciaColor } from "@/lib/utils/status";
 import { formatDate } from "@/lib/utils/format";
@@ -11,13 +11,14 @@ export default async function CotacoesPage() {
   const user = await getSession();
   if (!user) return null;
   const perms = canDo(user.role);
+  const cotacoes = await getCotacoes();
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Cotações</h1>
-          <p className="text-sm text-gray-500">{mockCotacoes.length} cotações</p>
+          <p className="text-sm text-gray-500">{cotacoes.length} cotações</p>
         </div>
         {perms.criarCotacao && (
           <Link href="/cotacoes/nova" className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">
@@ -42,7 +43,7 @@ export default async function CotacoesPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {mockCotacoes.map((c) => {
+            {cotacoes.map((c) => {
               const orcsCadastrados = c.fornecedores.filter((f) => f.status === "ORCAMENTO_CADASTRADO").length;
               return (
                 <tr key={c.id} className="hover:bg-gray-50">

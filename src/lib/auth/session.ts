@@ -40,13 +40,32 @@ function verify(value: string): string | null {
   }
 }
 
+async function findUserById(id: string): Promise<User | null> {
+  if (!process.env.FIREBASE_PROJECT_ID) {
+    return mockUsers.find((u) => u.id === id) ?? null;
+  }
+  const { getUser } = await import("@/lib/db/users-repo");
+  return getUser(id);
+}
+
+async function findUserByEmail(email: string): Promise<{ user: User; passwordHash: string } | null> {
+  if (!process.env.FIREBASE_PROJECT_ID) {
+    const hash = mockCredentials[email];
+    const user = mockUsers.find((u) => u.email === email);
+    if (!hash || !user) return null;
+    return { user, passwordHash: hash };
+  }
+  const { getUserByEmail } = await import("@/lib/db/users-repo");
+  return getUserByEmail(email);
+}
+
 export async function login(email: string, senha: string): Promise<User | null> {
-  const hash = mockCredentials[email];
-  if (!hash) return null;
-  const valid = await bcrypt.compare(senha, hash);
+  const result = await findUserByEmail(email);
+  if (!result) return null;
+  const { user, passwordHash } = result;
+  const valid = await bcrypt.compare(senha, passwordHash);
   if (!valid) return null;
-  const user = mockUsers.find((u) => u.email === email && u.ativo);
-  if (!user) return null;
+  if (!user.ativo) return null;
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE, sign(user.id), {
     httpOnly: true,
@@ -74,5 +93,5 @@ export async function getSession(): Promise<User | null> {
     return null;
   }
   if (!userId) return null;
-  return mockUsers.find((u) => u.id === userId) ?? null;
+  return findUserById(userId);
 }

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import type { ApprovalDecisionAction } from "@/lib/approval/types";
-import { decidePurchaseRequisition } from "@/lib/approval/repository";
+import { makeDecision } from "@/lib/db/approval-repo";
+import { logAudit } from "@/lib/db/audit-repo";
 import { getSession } from "@/lib/auth/session";
 import { canDo } from "@/lib/security/permissions";
-import { SupabaseConfigError, SupabaseRestError } from "@/lib/db/supabase-rest";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,36 +60,17 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   try {
-    const requisition = await decidePurchaseRequisition(
+    await makeDecision(id, action, comment || null, user.nome);
+    await logAudit(
+      "approval_requisition",
       id,
-      action,
-      comment || null,
-      user.nome
+      action === "APROVAR" ? "APPROVE" : "REJECT",
+      user.id,
+      { action, comment: comment || null }
     );
 
-    return NextResponse.json({
-      success: true,
-      requisition,
-    });
+    return NextResponse.json({ success: true });
   } catch (error) {
-    if (error instanceof SupabaseConfigError) {
-      return NextResponse.json(
-        {
-          error: error.message,
-          setup:
-            "Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY, depois rode o SQL em supabase/migrations/202605180001_approval_requisitions.sql.",
-        },
-        { status: 503 }
-      );
-    }
-
-    if (error instanceof SupabaseRestError) {
-      return NextResponse.json(
-        { error: error.message, details: error.details },
-        { status: error.status }
-      );
-    }
-
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Erro ao salvar decisao." },
       { status: 500 }

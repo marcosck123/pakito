@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { getSession } from "@/lib/auth/session";
-import { mockPecas } from "@/lib/mock-data/pecas";
+import { getPecas } from "@/lib/db/pecas-repo";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { pecaStatusLabel, pecaStatusColor } from "@/lib/utils/status";
 import { canDo } from "@/lib/security/permissions";
@@ -11,12 +11,14 @@ export default async function PecasPage() {
   if (!user) return null;
   const perms = canDo(user.role);
 
+  const pecas = await getPecas();
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Peças / Produtos</h1>
-          <p className="text-sm text-gray-500">{mockPecas.length} cadastradas</p>
+          <p className="text-sm text-gray-500">{pecas.length} cadastradas</p>
         </div>
         {perms.cadastrarPeca && (
           <Link href="/pecas/nova" className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">
@@ -41,7 +43,7 @@ export default async function PecasPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {mockPecas.map((p) => (
+            {pecas.map((p) => (
               <tr key={p.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3">
                   <p className="font-medium text-gray-900">{p.nome}</p>

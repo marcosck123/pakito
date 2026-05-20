@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
-import { listApprovalRequisitions } from "@/lib/approval/repository";
+import { getApprovalRequisitions } from "@/lib/db/approval-repo";
 import { canDo } from "@/lib/security/permissions";
-import { SupabaseConfigError, SupabaseRestError } from "@/lib/db/supabase-rest";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,26 +25,8 @@ export async function GET() {
   }
 
   try {
-    return NextResponse.json(await listApprovalRequisitions());
+    return NextResponse.json(await getApprovalRequisitions());
   } catch (error) {
-    if (error instanceof SupabaseConfigError) {
-      return NextResponse.json(
-        {
-          error: error.message,
-          setup:
-            "Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY, depois rode o SQL em supabase/migrations/202605180001_approval_requisitions.sql.",
-        },
-        { status: 503 }
-      );
-    }
-
-    if (error instanceof SupabaseRestError) {
-      return NextResponse.json(
-        { error: error.message, details: error.details },
-        { status: error.status }
-      );
-    }
-
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Erro ao buscar requisicoes." },
       { status: 500 }

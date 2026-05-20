@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { getSession } from "@/lib/auth/session";
-import { mockFornecedores } from "@/lib/mock-data/fornecedores";
-import { mockCotacoes } from "@/lib/mock-data/cotacoes";
+import { getFornecedores } from "@/lib/db/fornecedores-repo";
+import { getCotacoes } from "@/lib/db/cotacoes-repo";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { fornecedorStatusLabel, fornecedorStatusColor } from "@/lib/utils/status";
 import { formatDate } from "@/lib/utils/format";
@@ -13,12 +13,14 @@ export default async function FornecedoresPage() {
   if (!user) return null;
   const perms = canDo(user.role);
 
+  const [fornecedores, cotacoes] = await Promise.all([getFornecedores(), getCotacoes()]);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Fornecedores</h1>
-          <p className="text-sm text-gray-500">{mockFornecedores.length} cadastrados</p>
+          <p className="text-sm text-gray-500">{fornecedores.length} cadastrados</p>
         </div>
         {perms.cadastrarFornecedor && (
           <Link href="/fornecedores/novo" className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">
@@ -42,8 +44,8 @@ export default async function FornecedoresPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {mockFornecedores.map((f) => {
-              const ultimaCotacao = mockCotacoes
+            {fornecedores.map((f) => {
+              const ultimaCotacao = cotacoes
                 .filter((c) => c.fornecedores.some((fc) => fc.fornecedorId === f.id))
                 .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm))[0];
 
