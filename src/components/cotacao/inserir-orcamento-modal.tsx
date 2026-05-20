@@ -928,6 +928,120 @@ export function InserirOrcamentoModal({
     );
   }
 
+  // IMAGE UPLOAD
+  if (step === "image-upload") {
+    const imageFileRef = { current: null as HTMLInputElement | null };
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+        <div className="w-full max-w-md rounded-xl bg-white shadow-2xl">
+          <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+            <div>
+              <h2 className="text-base font-bold text-gray-900">Escanear foto de orçamento</h2>
+              <p className="text-sm text-gray-500">{fornecedor.nome}</p>
+            </div>
+            <button onClick={onClose} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="p-6 space-y-4">
+            <div
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const f = e.dataTransfer.files?.[0];
+                if (f && ["image/png", "image/jpeg", "image/jpg", "image/webp"].includes(f.type)) {
+                  setImageFile(f);
+                  setImagePreviewUrl(URL.createObjectURL(f));
+                  setImageError("");
+                }
+              }}
+              onClick={() => imageFileRef.current?.click()}
+              className={`flex flex-col items-center gap-3 rounded-xl border-2 border-dashed p-6 cursor-pointer transition-colors ${
+                imageFile
+                  ? "border-violet-400 bg-violet-50"
+                  : "border-gray-300 bg-gray-50 hover:border-violet-400 hover:bg-violet-50"
+              }`}
+            >
+              {imagePreviewUrl ? (
+                <div className="w-full text-center space-y-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={imagePreviewUrl}
+                    alt="Preview da imagem selecionada"
+                    className="mx-auto max-h-48 rounded-lg object-contain border border-gray-200"
+                  />
+                  <p className="text-xs text-violet-600">{imageFile?.name} · Clique para trocar</p>
+                </div>
+              ) : (
+                <>
+                  <Camera className="h-8 w-8 text-gray-400" />
+                  <div className="text-center">
+                    <p className="font-medium text-gray-700">Clique ou arraste uma imagem</p>
+                    <p className="text-xs text-gray-400">PNG, JPEG ou WebP · máx. 10 MB</p>
+                  </div>
+                </>
+              )}
+              <input
+                ref={(el) => { imageFileRef.current = el; }}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) {
+                    setImageFile(f);
+                    setImagePreviewUrl(URL.createObjectURL(f));
+                    setImageError("");
+                  }
+                }}
+              />
+            </div>
+
+            {imageLoading && (
+              <div className="flex items-center justify-center gap-2 rounded-lg bg-violet-50 border border-violet-200 px-4 py-3 text-sm text-violet-700">
+                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+                Executando OCR na imagem...
+              </div>
+            )}
+
+            {imageError && !imageLoading && (
+              <PdfErrorPanel
+                error={imageError}
+                debug={imageDebug}
+                rawText={imageRawText}
+                expanded={imageDebugExpanded}
+                onToggleExpand={() => setImageDebugExpanded((v) => !v)}
+                onUseManual={() => setStep("form")}
+              />
+            )}
+          </div>
+
+          <div className="flex items-center justify-between border-t border-gray-100 px-6 py-4">
+            <button
+              onClick={() => setStep("method")}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              Voltar
+            </button>
+            <button
+              onClick={processImage}
+              disabled={!imageFile || imageLoading}
+              className="flex items-center gap-2 rounded-lg bg-violet-600 px-5 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
+            >
+              <Camera className="h-4 w-4" />
+              {imageLoading ? "Processando..." : "Extrair texto da foto"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // MANUAL FORM
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-gray-50">
