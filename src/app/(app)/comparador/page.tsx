@@ -1,10 +1,9 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { getSession } from "@/lib/auth/session";
-import { mockCotacoes } from "@/lib/mock-data/cotacoes";
-import { mockOrcamentos } from "@/lib/mock-data/orcamentos";
+import { getCotacoes } from "@/lib/db/cotacoes-repo";
+import { getOrcamentos } from "@/lib/db/orcamentos-repo";
 import { formatCurrency } from "@/lib/utils/format";
-import { canDo } from "@/lib/security/permissions";
 
 interface Props { searchParams: Promise<{ cotacao?: string }>; }
 
@@ -13,9 +12,11 @@ export default async function ComparadorPage({ searchParams }: Props) {
   const user = await getSession();
   if (!user) return null;
 
-  const cotacoesComOrcamentos = mockCotacoes.filter((c) => mockOrcamentos.some((o) => o.cotacaoId === c.id));
-  const cotacao = cotacaoId ? mockCotacoes.find((c) => c.id === cotacaoId) : cotacoesComOrcamentos[0];
-  const orcamentos = cotacao ? mockOrcamentos.filter((o) => o.cotacaoId === cotacao.id) : [];
+  const [allCotacoes, orcamentos] = await Promise.all([getCotacoes(), getOrcamentos()]);
+
+  const cotacoesComOrcamentos = allCotacoes.filter((c) => orcamentos.some((o) => o.cotacaoId === c.id));
+  const cotacao = cotacaoId ? allCotacoes.find((c) => c.id === cotacaoId) : cotacoesComOrcamentos[0];
+  const cotacaoOrcamentos = cotacao ? orcamentos.filter((o) => o.cotacaoId === cotacao.id) : [];
 
   return (
     <div className="space-y-6">
@@ -48,7 +49,7 @@ export default async function ComparadorPage({ searchParams }: Props) {
         </div>
       )}
 
-      {cotacao && orcamentos.length > 0 && (
+      {cotacao && cotacaoOrcamentos.length > 0 && (
         <>
           <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
             <div className="border-b border-gray-100 bg-gray-50 px-4 py-3">
@@ -60,13 +61,13 @@ export default async function ComparadorPage({ searchParams }: Props) {
                   <tr className="border-b border-gray-100 text-left text-xs text-gray-500">
                     <th className="px-4 py-2.5 font-medium">Peça</th>
                     <th className="px-4 py-2.5 font-medium">Qtd</th>
-                    {orcamentos.map((o) => <th key={o.id} className="px-4 py-2.5 font-medium">{o.fornecedor?.nome}</th>)}
+                    {cotacaoOrcamentos.map((o) => <th key={o.id} className="px-4 py-2.5 font-medium">{o.fornecedor?.nome}</th>)}
                     <th className="px-4 py-2.5 font-medium bg-green-50 text-green-700">Menor preço</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {cotacao.itens.map((cotItem) => {
-                    const valoresPorOrcamento = orcamentos.map((o) => ({ orcamento: o, item: o.itens.find((i) => i.cotacaoItemId === cotItem.id) }));
+                    const valoresPorOrcamento = cotacaoOrcamentos.map((o) => ({ orcamento: o, item: o.itens.find((i) => i.cotacaoItemId === cotItem.id) }));
                     const valoresValidos = valoresPorOrcamento.filter((v) => v.item && v.item.disponivel).map((v) => v.item!.valorTotal);
                     const menorValor = valoresValidos.length > 0 ? Math.min(...valoresValidos) : null;
                     return (
@@ -115,10 +116,10 @@ export default async function ComparadorPage({ searchParams }: Props) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {orcamentos.map((o) => {
+                  {cotacaoOrcamentos.map((o) => {
                     const totalItens = o.itens.reduce((s, i) => s + i.valorTotal, 0);
                     const totalFinal = totalItens + o.valorFrete;
-                    const menorTotal = Math.min(...orcamentos.map((oo) => oo.itens.reduce((s, i) => s + i.valorTotal, 0) + oo.valorFrete));
+                    const menorTotal = Math.min(...cotacaoOrcamentos.map((oo) => oo.itens.reduce((s, i) => s + i.valorTotal, 0) + oo.valorFrete));
                     const isMelhor = totalFinal === menorTotal;
                     return (
                       <tr key={o.id} className={isMelhor ? "bg-green-50" : "hover:bg-gray-50"}>

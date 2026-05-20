@@ -2,9 +2,9 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
-import { mockCotacoes } from "@/lib/mock-data/cotacoes";
-import { mockOrcamentos } from "@/lib/mock-data/orcamentos";
-import { findByCotacaoId, findByCotacaoIdAndFornecedor } from "@/lib/mock-data/purchase-requisitions";
+import { getCotacao } from "@/lib/db/cotacoes-repo";
+import { getOrcamentosByCotacao } from "@/lib/db/orcamentos-repo";
+import { getPurchaseRequisitions } from "@/lib/db/purchase-requisitions-repo";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   cotacaoStatusLabel, cotacaoStatusColor, urgenciaLabel, urgenciaColor,
@@ -15,7 +15,6 @@ import { formatDate, formatCurrency } from "@/lib/utils/format";
 import { canDo } from "@/lib/security/permissions";
 import { RequisicaoCompraSection } from "@/components/cotacao/requisicao-compra-section";
 import { FornecedoresSection } from "@/components/cotacao/fornecedores-section";
-import { findByCotacaoAndFornecedor } from "@/lib/mock-data/orcamentos";
 import type { PurchaseRequisitionItem, Orcamento } from "@/types";
 
 interface Props {
@@ -30,16 +29,19 @@ export default async function CotacaoDetalhePage({ params, searchParams }: Props
   if (!user) return null;
   const perms = canDo(user.role);
 
-  const cotacao = mockCotacoes.find((c) => c.id === id);
+  const cotacao = await getCotacao(id);
   if (!cotacao) notFound();
 
-  const orcamentos = mockOrcamentos.filter((o) => o.cotacaoId === id);
-  const purchaseRequisition = findByCotacaoId(id);
+  const [orcamentos, allPurchaseRequisitions] = await Promise.all([
+    getOrcamentosByCotacao(id),
+    getPurchaseRequisitions(),
+  ]);
+
+  const purchaseRequisition = allPurchaseRequisitions.find((r) => r.cotacaoId === id && !r.fornecedorNome) ?? null;
 
   const existingOrcamentos: Record<string, Orcamento> = {};
-  for (const fc of cotacao.fornecedores) {
-    const orc = findByCotacaoAndFornecedor(id, fc.fornecedorId);
-    if (orc) existingOrcamentos[fc.fornecedorId] = orc;
+  for (const orc of orcamentos) {
+    existingOrcamentos[orc.fornecedorId] = orc;
   }
 
   const bestByItem = new Map<string, { valorUnitario: number; marca: string; fornecedor: string }>();
@@ -147,8 +149,8 @@ export default async function CotacaoDetalhePage({ params, searchParams }: Props
             const suffix = multiSupplier ? `-${String.fromCharCode(65 + i)}` : "";
             const defaultNumero = `RC-${baseCode}${suffix}`;
             const initialRequisition = fornecedorNome
-              ? findByCotacaoIdAndFornecedor(id, fornecedorNome)
-              : findByCotacaoId(id);
+              ? (allPurchaseRequisitions.find((r) => r.cotacaoId === id && r.fornecedorNome === fornecedorNome) ?? null)
+              : purchaseRequisition;
             return (
               <RequisicaoCompraSection
                 key={fornecedorNome || "sem-fornecedor"}

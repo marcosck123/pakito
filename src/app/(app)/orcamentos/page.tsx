@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { Paperclip } from "lucide-react";
 import { getSession } from "@/lib/auth/session";
-import { mockOrcamentos } from "@/lib/mock-data/orcamentos";
-import { mockCotacoes } from "@/lib/mock-data/cotacoes";
+import { getOrcamentos } from "@/lib/db/orcamentos-repo";
+import { getCotacoes } from "@/lib/db/cotacoes-repo";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { orcamentoStatusLabel, orcamentoStatusColor } from "@/lib/utils/status";
 import { formatDate, formatCurrency } from "@/lib/utils/format";
@@ -13,11 +13,13 @@ export default async function OrcamentosPage() {
   if (!user) return null;
   const perms = canDo(user.role);
 
+  const [allOrcamentos, allCotacoes] = await Promise.all([getOrcamentos(), getCotacoes()]);
+
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-xl font-bold text-gray-900">Orçamentos recebidos</h1>
-        <p className="text-sm text-gray-500">{mockOrcamentos.length} orçamentos</p>
+        <p className="text-sm text-gray-500">{allOrcamentos.length} orçamentos</p>
       </div>
 
       <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
@@ -38,8 +40,8 @@ export default async function OrcamentosPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {mockOrcamentos.map((o) => {
-              const cotacao = mockCotacoes.find((c) => c.id === o.cotacaoId);
+            {allOrcamentos.map((o) => {
+              const cotacao = allCotacoes.find((c) => c.id === o.cotacaoId);
               const total = o.itens.reduce((s, i) => s + i.valorTotal, 0) + o.valorFrete;
               return (
                 <tr key={o.id} className="hover:bg-gray-50">
@@ -75,8 +77,8 @@ export default async function OrcamentosPage() {
 
       <div className="space-y-4">
         <h2 className="text-sm font-semibold text-gray-800">Detalhe dos itens por orçamento</h2>
-        {mockOrcamentos.map((o) => {
-          const cotacao = mockCotacoes.find((c) => c.id === o.cotacaoId);
+        {allOrcamentos.map((o) => {
+          const cotacao = allCotacoes.find((c) => c.id === o.cotacaoId);
           return (
             <div key={o.id} className="rounded-lg border border-gray-200 bg-white overflow-hidden">
               <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-4 py-2">

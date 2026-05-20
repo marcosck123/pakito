@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getSession } from "@/lib/auth/session";
-import { mockRequisicoes } from "@/lib/mock-data/requisicoes";
+import { getRequisicoes } from "@/lib/db/requisicoes-repo";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { requisicaoStatusLabel, requisicaoStatusColor, urgenciaLabel, urgenciaColor } from "@/lib/utils/status";
 import { formatDate, formatCurrency } from "@/lib/utils/format";
@@ -9,11 +9,13 @@ export default async function RequisicoesPage() {
   const user = await getSession();
   if (!user) return null;
 
+  const requisicoes = await getRequisicoes();
+
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-xl font-bold text-gray-900">Requisições de compra</h1>
-        <p className="text-sm text-gray-500">{mockRequisicoes.length} requisições</p>
+        <p className="text-sm text-gray-500">{requisicoes.length} requisições</p>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -39,7 +41,7 @@ export default async function RequisicoesPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {mockRequisicoes.map((r) => (
+            {requisicoes.map((r) => (
               <tr key={r.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-700">{r.numero}</td>
                 <td className="px-4 py-3 text-gray-700">{r.solicitante?.nome}</td>
