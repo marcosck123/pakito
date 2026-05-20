@@ -18,6 +18,20 @@ export default async function ComparadorPage({ searchParams }: Props) {
   const cotacao = cotacaoId ? allCotacoes.find((c) => c.id === cotacaoId) : cotacoesComOrcamentos[0];
   const cotacaoOrcamentos = cotacao ? orcamentos.filter((o) => o.cotacaoId === cotacao.id) : [];
 
+  // Build min unit price per cotacao item for suspicious price detection (>30% above cheapest)
+  const minUnitPricePerItem = new Map<string, number>();
+  if (cotacao) {
+    for (const cotItem of cotacao.itens) {
+      const prices = cotacaoOrcamentos
+        .flatMap((o) => o.itens.filter((i) => i.cotacaoItemId === cotItem.id && i.disponivel))
+        .map((i) => i.valorUnitario)
+        .filter((p) => p > 0);
+      if (prices.length > 0) {
+        minUnitPricePerItem.set(cotItem.id, Math.min(...prices));
+      }
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -77,17 +91,26 @@ export default async function ComparadorPage({ searchParams }: Props) {
                           {cotItem.marcaDesejada && <p className="text-xs text-gray-400">Desej.: {cotItem.marcaDesejada}</p>}
                         </td>
                         <td className="px-4 py-2.5 text-gray-600">{cotItem.quantidade}</td>
-                        {valoresPorOrcamento.map(({ orcamento, item }) => (
-                          <td key={orcamento.id} className={`px-4 py-2.5 ${item && item.disponivel && item.valorTotal === menorValor ? "bg-green-50 font-semibold text-green-800" : "text-gray-700"}`}>
-                            {item ? (
-                              <div>
-                                <p className={item.disponivel ? "" : "line-through text-gray-400"}>{formatCurrency(item.valorTotal)}</p>
-                                {item.marcaCotada && <p className="text-xs text-gray-400">{item.marcaCotada}</p>}
-                                {!item.disponivel && <p className="text-xs text-red-500">Indisponível</p>}
-                              </div>
-                            ) : <span className="text-gray-300">—</span>}
-                          </td>
-                        ))}
+                        {valoresPorOrcamento.map(({ orcamento, item }) => {
+                          const minUnit = minUnitPricePerItem.get(cotItem.id);
+                          const isSuspeito = item && item.disponivel && minUnit !== undefined && item.valorUnitario > minUnit * 1.3;
+                          return (
+                            <td key={orcamento.id} className={`px-4 py-2.5 ${item && item.disponivel && item.valorTotal === menorValor ? "bg-green-50 font-semibold text-green-800" : "text-gray-700"}`}>
+                              {item ? (
+                                <div>
+                                  <div className="flex items-center gap-1">
+                                    <p className={item.disponivel ? "" : "line-through text-gray-400"}>{formatCurrency(item.valorTotal)}</p>
+                                    {isSuspeito && (
+                                      <span className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700" title="Preço mais de 30% acima do menor">suspeito</span>
+                                    )}
+                                  </div>
+                                  {item.marcaCotada && <p className="text-xs text-gray-400">{item.marcaCotada}</p>}
+                                  {!item.disponivel && <p className="text-xs text-red-500">Indisponível</p>}
+                                </div>
+                              ) : <span className="text-gray-300">—</span>}
+                            </td>
+                          );
+                        })}
                         <td className="px-4 py-2.5 bg-green-50 font-bold text-green-800">{menorValor !== null ? formatCurrency(menorValor) : "—"}</td>
                       </tr>
                     );
@@ -144,7 +167,7 @@ export default async function ComparadorPage({ searchParams }: Props) {
 
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
             <p className="text-sm text-amber-800">
-              <strong>Atenção:</strong> O sistema sugere o menor preço, mas a decisão final é sua. Considere prazo de entrega, disponibilidade de estoque, confiabilidade do fornecedor e outros fatores antes de gerar a requisição.
+              <strong>Atenção:</strong> O sistema sugere o menor preço, mas a decisão final é sua. Considere prazo de entrega, disponibilidade de estoque, confiabilidade do fornecedor e outros fatores antes de gerar a requisição. Itens marcados como <strong>suspeito</strong> têm preço mais de 30% acima do menor valor recebido.
             </p>
           </div>
         </>
