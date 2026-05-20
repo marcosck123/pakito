@@ -431,7 +431,9 @@ export function InserirOrcamentoModal({
     }
   }
 
-  // ── Image upload ───────────────────────────────────────────────────────────
+  // ── Image upload (OCR runs in the browser via Tesseract.js) ──────────────
+
+  const [ocrProgress, setOcrProgress] = useState(0);
 
   async function processImage() {
     if (!imageFile) return;
@@ -440,48 +442,59 @@ export function InserirOrcamentoModal({
     setImageRawText("");
     setImageDebug(null);
     setImageDebugExpanded(false);
+    setOcrProgress(0);
     try {
-      const fd = new FormData();
-      fd.append("file", imageFile);
-      fd.append("cotacaoId", cotacaoId);
-      const res = await fetch("/api/orcamentos/parse-image", {
-        method: "POST",
-        body: fd,
+      // Run OCR entirely in browser — avoids serverless timeouts
+      const { createWorker } = await import("tesseract.js");
+      const worker = await createWorker(["por", "eng"], 1, {
+        logger: (m: { status: string; progress: number }) => {
+          if (m.status === "recognizing text") {
+            setOcrProgress(Math.round(m.progress * 100));
+          }
+        },
       });
 
-      const data = await res.json().catch(() => null);
+      const imageUrl = URL.createObjectURL(imageFile);
+      const { data: { text } } = await worker.recognize(imageUrl);
+      await worker.terminate();
+      URL.revokeObjectURL(imageUrl);
 
-      if (!res.ok) {
-        console.error("[parse-image frontend error]", data);
-        const debug: PdfDebug = {
-          requestId: data?.requestId,
-          reason: data?.reason,
-          ...(data?.debug ?? {}),
-        };
-        setImageDebug(debug);
-        setImageError(data?.error ?? "Erro ao processar imagem.");
+      const rawText = text.trim();
+      const textLength = rawText.replace(/\s/g, "").length;
+
+      if (textLength < 30) {
+        setImageError("Não foi possível extrair texto da imagem. Tente uma foto mais nítida com boa iluminação.");
         return;
       }
 
-      if (data?.freteDetectado != null && data.freteDetectado > 0) {
-        setPdfGeneral((p) => ({ ...p, valorFrete: String(data.freteDetectado) }));
+      // Parse client-side using the same parser as PDF
+      const { parseOrcamentoPdf } = await import("@/lib/pdf/parser");
+      const cotacaoItensSimple = cotacaoItens.map((ci) => ({
+        id: ci.id,
+        nome: ci.peca?.nome ?? "",
+        codigoInterno: ci.peca?.codigoInterno,
+        codigoOriginal: ci.peca?.codigoOriginal,
+      }));
+
+      const { itens: extracted, freteDetectado } = parseOrcamentoPdf(rawText, cotacaoItensSimple);
+
+      if (freteDetectado != null && freteDetectado > 0) {
+        setPdfGeneral((p) => ({ ...p, valorFrete: String(freteDetectado) }));
       }
 
-      if (data?.requiresManualReview) {
-        setImageRawText(data.rawText ?? "");
-        setImageDebug({ requestId: data.requestId, reason: data.reason, ...(data.debug ?? {}) });
-        setImageError(data.message ?? "Nenhum item identificado automaticamente. Confira o texto e preencha manualmente.");
+      if (extracted.length === 0) {
+        setImageRawText(rawText);
+        setImageError("Texto extraído mas nenhum item identificado automaticamente. Use o texto como referência para preencher manualmente.");
         return;
       }
 
-      const extracted: ExtractedItem[] = data?.itens ?? [];
       setReviewItems(
         extracted.map((item, i) => ({
-          id: `ri-${i}`,
+          id: `ri-img-${i}`,
           linhaOriginal: item.linhaOriginal,
           nomeExtraido: item.nomeExtraido,
           cotacaoItemId: item.pecaSugeridaId ?? "",
-          marcaCotada: "",
+          marcaCotada: item.marca ?? "",
           quantidade: item.quantidade != null ? String(item.quantidade) : "",
           valorUnitario: item.valorUnitario != null ? String(item.valorUnitario) : "",
           confianca: item.confianca,
@@ -490,10 +503,12 @@ export function InserirOrcamentoModal({
         }))
       );
       setStep("pdf-review");
-    } catch {
-      setImageError("Erro de comunicação com o servidor. Tente novamente.");
+    } catch (err) {
+      console.error("[parse-image ocr error]", err);
+      setImageError("Erro ao processar a imagem. Verifique se o arquivo é válido e tente novamente.");
     } finally {
       setImageLoading(false);
+      setOcrProgress(0);
     }
   }
 
@@ -1000,12 +1015,26 @@ export function InserirOrcamentoModal({
             </div>
 
             {imageLoading && (
-              <div className="flex items-center justify-center gap-2 rounded-lg bg-violet-50 border border-violet-200 px-4 py-3 text-sm text-violet-700">
-                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                </svg>
-                Executando OCR na imagem...
+              <div className="space-y-2 rounded-lg bg-violet-50 border border-violet-200 px-4 py-3 text-sm text-violet-700">
+                <div className="flex items-center gap-2">
+                  <svg className="h-4 w-4 animate-spin shrink-0" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  <span>
+                    {ocrProgress === 0
+                      ? "Carregando modelo OCR (primeira vez pode demorar)..."
+                      : `Reconhecendo texto... ${ocrProgress}%`}
+                  </span>
+                </div>
+                {ocrProgress > 0 && (
+                  <div className="h-1.5 w-full rounded-full bg-violet-200">
+                    <div
+                      className="h-1.5 rounded-full bg-violet-500 transition-all"
+                      style={{ width: `${ocrProgress}%` }}
+                    />
+                  </div>
+                )}
               </div>
             )}
 
