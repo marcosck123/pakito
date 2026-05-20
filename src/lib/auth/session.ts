@@ -10,7 +10,10 @@ const SESSION_COOKIE = "cotacoes_session";
 
 function getSecret(): string {
   const secret = process.env.SESSION_SECRET;
-  if (!secret) throw new Error("SESSION_SECRET não definido. Configure a variável de ambiente.");
+  if (!secret) {
+    console.warn("[session] SESSION_SECRET não configurado — usando chave padrão. Configure a variável de ambiente em produção.");
+    return "pakito-dev-secret-configure-SESSION_SECRET-in-production";
+  }
   return secret;
 }
 
