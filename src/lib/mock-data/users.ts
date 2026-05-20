@@ -51,11 +51,12 @@ export const mockUsers: User[] = [
   },
 ];
 
+// Hashes bcrypt da senha "1234" (custo 10). Substitua por senhas reais antes de produção.
 export const mockCredentials: Record<string, string> = {
-  "carlos@empresa.com": "1234",
-  "ana@empresa.com": "1234",
-  "joao@empresa.com": "1234",
-  "marcos@empresa.com": "1234",
-  "paulo@empresa.com": "1234",
-  "sandra@empresa.com": "1234",
+  "carlos@empresa.com": "$2b$10$O6k3qcDy2Likt//yDoziaeW68hXZ77CCm513u2iW6t79SfHzY13Ga",
+  "ana@empresa.com":    "$2b$10$O6k3qcDy2Likt//yDoziaeW68hXZ77CCm513u2iW6t79SfHzY13Ga",
+  "joao@empresa.com":   "$2b$10$O6k3qcDy2Likt//yDoziaeW68hXZ77CCm513u2iW6t79SfHzY13Ga",
+  "marcos@empresa.com": "$2b$10$O6k3qcDy2Likt//yDoziaeW68hXZ77CCm513u2iW6t79SfHzY13Ga",
+  "paulo@empresa.com":  "$2b$10$O6k3qcDy2Likt//yDoziaeW68hXZ77CCm513u2iW6t79SfHzY13Ga",
+  "sandra@empresa.com": "$2b$10$O6k3qcDy2Likt//yDoziaeW68hXZ77CCm513u2iW6t79SfHzY13Ga",
 };

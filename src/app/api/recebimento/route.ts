@@ -4,20 +4,20 @@ import { requireSession } from "@/lib/auth/require-session";
 import type { RequisicaoItem, ItemEntregaStatus, CondicaoPeca } from "@/types";
 
 export async function PATCH(request: Request) {
-  const { error } = await requireSession(["ADMIN", "COMPRAS", "RECEBIMENTO"]);
+  const { user, error } = await requireSession(["ADMIN", "COMPRAS", "RECEBIMENTO"]);
   if (error) return error;
 
   const body = await request.json() as {
     requisicaoId: string;
     itemId: string;
     action: "RECEBIDA" | "PARCIAL" | "PROBLEMA";
-    quemRecebeu: string;
     quantidadeRecebida?: number;
     observacao?: string;
     condicao?: CondicaoPeca;
   };
 
   const today = new Date().toISOString();
+  const quemRecebeu = user!.nome;
   let update: Partial<RequisicaoItem>;
 
   if (body.action === "RECEBIDA") {
@@ -25,7 +25,7 @@ export async function PATCH(request: Request) {
       statusEntrega: "RECEBIDA" as ItemEntregaStatus,
       quantidadeRecebida: body.quantidadeRecebida,
       dataRecebimento: today,
-      quemRecebeu: body.quemRecebeu,
+      quemRecebeu,
       condicaoPeca: "OK",
     };
   } else if (body.action === "PARCIAL") {
@@ -33,14 +33,14 @@ export async function PATCH(request: Request) {
       statusEntrega: "RECEBIDA_PARCIALMENTE" as ItemEntregaStatus,
       quantidadeRecebida: body.quantidadeRecebida ?? 0,
       dataRecebimento: today,
-      quemRecebeu: body.quemRecebeu,
+      quemRecebeu,
       observacaoRecebimento: body.observacao,
     };
   } else {
     update = {
       statusEntrega: "COM_PROBLEMA" as ItemEntregaStatus,
       dataRecebimento: today,
-      quemRecebeu: body.quemRecebeu,
+      quemRecebeu,
       condicaoPeca: body.condicao ?? "DANIFICADA",
       observacaoRecebimento: body.observacao,
     };

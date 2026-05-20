@@ -67,7 +67,6 @@ export async function POST(request: Request) {
           fileSize: diag.fileSize,
           bufferLength: diag.bufferLength,
           textLength: diag.textLength,
-          textPreview: diag.textPreview,
           itemsFound: diag.itemsFound,
           parseError: diag.parseError,
         },

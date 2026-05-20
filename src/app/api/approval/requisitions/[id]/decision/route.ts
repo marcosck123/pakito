@@ -63,7 +63,8 @@ export async function POST(request: Request, context: RouteContext) {
     const requisition = await decidePurchaseRequisition(
       id,
       action,
-      comment || null
+      comment || null,
+      user.nome
     );
 
     return NextResponse.json({

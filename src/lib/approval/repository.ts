@@ -186,7 +186,8 @@ export async function listApprovalRequisitions(): Promise<ApprovalRequisitionsPa
 export async function decidePurchaseRequisition(
   requisitionId: string,
   action: ApprovalDecisionAction,
-  comment: string | null
+  comment: string | null,
+  decidedBy: string
 ) {
   const response = await supabaseRpc<DecisionRpcResponse>(
     "decide_purchase_requisition",
@@ -194,7 +195,7 @@ export async function decidePurchaseRequisition(
       p_requisition_id: requisitionId,
       p_action: action,
       p_comment: comment,
-      p_decided_by: "Responsável",
+      p_decided_by: decidedBy,
     }
   );
   const row = await fetchRequisitionById(requisitionId);
