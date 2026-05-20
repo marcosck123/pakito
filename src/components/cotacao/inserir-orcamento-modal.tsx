@@ -7,6 +7,7 @@ import {
   X,
   FileText,
   ScanLine,
+  Camera,
   CheckCircle,
   Save,
   Upload,
@@ -25,7 +26,7 @@ const SHOW_PDF_DEBUG = process.env.NEXT_PUBLIC_SHOW_PDF_DEBUG === "true";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Step = "method" | "pdf-upload" | "pdf-review" | "form";
+type Step = "method" | "pdf-upload" | "pdf-review" | "image-upload" | "form";
 
 type PdfDebug = {
   requestId?: string;
@@ -240,6 +241,15 @@ export function InserirOrcamentoModal({
   const [pdfDebug, setPdfDebug] = useState<PdfDebug | null>(null);
   const [debugExpanded, setDebugExpanded] = useState(false);
 
+  // Image upload state
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string>("");
+  const [imageLoading, setImageLoading] = useState(false);
+  const [imageError, setImageError] = useState<string>("");
+  const [imageDebug, setImageDebug] = useState<PdfDebug | null>(null);
+  const [imageDebugExpanded, setImageDebugExpanded] = useState(false);
+  const [imageRawText, setImageRawText] = useState<string>("");
+
   // PDF review state
   const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
   const [pdfGeneral, setPdfGeneral] = useState<PdfGeneralFields>({
@@ -421,6 +431,72 @@ export function InserirOrcamentoModal({
     }
   }
 
+  // ── Image upload ───────────────────────────────────────────────────────────
+
+  async function processImage() {
+    if (!imageFile) return;
+    setImageLoading(true);
+    setImageError("");
+    setImageRawText("");
+    setImageDebug(null);
+    setImageDebugExpanded(false);
+    try {
+      const fd = new FormData();
+      fd.append("file", imageFile);
+      fd.append("cotacaoId", cotacaoId);
+      const res = await fetch("/api/orcamentos/parse-image", {
+        method: "POST",
+        body: fd,
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        console.error("[parse-image frontend error]", data);
+        const debug: PdfDebug = {
+          requestId: data?.requestId,
+          reason: data?.reason,
+          ...(data?.debug ?? {}),
+        };
+        setImageDebug(debug);
+        setImageError(data?.error ?? "Erro ao processar imagem.");
+        return;
+      }
+
+      if (data?.freteDetectado != null && data.freteDetectado > 0) {
+        setPdfGeneral((p) => ({ ...p, valorFrete: String(data.freteDetectado) }));
+      }
+
+      if (data?.requiresManualReview) {
+        setImageRawText(data.rawText ?? "");
+        setImageDebug({ requestId: data.requestId, reason: data.reason, ...(data.debug ?? {}) });
+        setImageError(data.message ?? "Nenhum item identificado automaticamente. Confira o texto e preencha manualmente.");
+        return;
+      }
+
+      const extracted: ExtractedItem[] = data?.itens ?? [];
+      setReviewItems(
+        extracted.map((item, i) => ({
+          id: `ri-${i}`,
+          linhaOriginal: item.linhaOriginal,
+          nomeExtraido: item.nomeExtraido,
+          cotacaoItemId: item.pecaSugeridaId ?? "",
+          marcaCotada: "",
+          quantidade: item.quantidade != null ? String(item.quantidade) : "",
+          valorUnitario: item.valorUnitario != null ? String(item.valorUnitario) : "",
+          confianca: item.confianca,
+          observacao: "",
+          ignorar: false,
+        }))
+      );
+      setStep("pdf-review");
+    } catch {
+      setImageError("Erro de comunicação com o servidor. Tente novamente.");
+    } finally {
+      setImageLoading(false);
+    }
+  }
+
   // ── PDF confirm ────────────────────────────────────────────────────────────
 
   async function confirmPdf() {
@@ -489,25 +565,35 @@ export function InserirOrcamentoModal({
           </div>
           <div className="p-6">
             <p className="mb-5 text-sm text-gray-600">Como deseja inserir o orçamento?</p>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-3">
               <button
                 onClick={() => setStep("form")}
-                className="flex flex-col items-center gap-3 rounded-xl border-2 border-blue-500 bg-blue-50 p-5 text-center transition-colors hover:bg-blue-100"
+                className="flex flex-col items-center gap-3 rounded-xl border-2 border-blue-500 bg-blue-50 p-4 text-center transition-colors hover:bg-blue-100"
               >
                 <FileText className="h-8 w-8 text-blue-600" />
                 <div>
-                  <p className="font-semibold text-blue-900">Inserir manualmente</p>
+                  <p className="font-semibold text-blue-900 text-sm">Inserir manualmente</p>
                   <p className="mt-0.5 text-xs text-blue-600">Preencher formulário</p>
                 </div>
               </button>
               <button
                 onClick={() => setStep("pdf-upload")}
-                className="flex flex-col items-center gap-3 rounded-xl border-2 border-emerald-500 bg-emerald-50 p-5 text-center transition-colors hover:bg-emerald-100"
+                className="flex flex-col items-center gap-3 rounded-xl border-2 border-emerald-500 bg-emerald-50 p-4 text-center transition-colors hover:bg-emerald-100"
               >
                 <ScanLine className="h-8 w-8 text-emerald-600" />
                 <div>
-                  <p className="font-semibold text-emerald-900">Escanear PDF</p>
+                  <p className="font-semibold text-emerald-900 text-sm">Escanear PDF</p>
                   <p className="mt-0.5 text-xs text-emerald-600">PDF com texto selecionável</p>
+                </div>
+              </button>
+              <button
+                onClick={() => setStep("image-upload")}
+                className="flex flex-col items-center gap-3 rounded-xl border-2 border-violet-500 bg-violet-50 p-4 text-center transition-colors hover:bg-violet-100"
+              >
+                <Camera className="h-8 w-8 text-violet-600" />
+                <div>
+                  <p className="font-semibold text-violet-900 text-sm">Escanear foto</p>
+                  <p className="mt-0.5 text-xs text-violet-600">OCR via imagem</p>
                 </div>
               </button>
             </div>
