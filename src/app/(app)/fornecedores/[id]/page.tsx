@@ -2,9 +2,9 @@ import Link from "next/link";
 import { ArrowLeft, Phone, Mail, MapPin, Building2 } from "lucide-react";
 import { notFound } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
-import { mockFornecedores } from "@/lib/mock-data/fornecedores";
-import { mockCotacoes } from "@/lib/mock-data/cotacoes";
-import { mockOrcamentos } from "@/lib/mock-data/orcamentos";
+import { getFornecedor } from "@/lib/db/fornecedores-repo";
+import { getCotacoes } from "@/lib/db/cotacoes-repo";
+import { getOrcamentos } from "@/lib/db/orcamentos-repo";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   fornecedorStatusLabel,
@@ -25,13 +25,19 @@ export default async function FornecedorDetalhePage({ params }: Props) {
   const user = await getSession();
   if (!user) return null;
 
-  const fornecedor = mockFornecedores.find((f) => f.id === id);
+  const [fornecedor, cotacoes, orcamentos] = await Promise.all([
+    getFornecedor(id),
+    getCotacoes(),
+    getOrcamentos(),
+  ]);
+
   if (!fornecedor) notFound();
 
-  const cotacoesVinculadas = mockCotacoes.filter((c) =>
+  const cotacoesVinculadas = cotacoes.filter((c) =>
     c.fornecedores.some((fc) => fc.fornecedorId === id)
   );
-  const orcamentosEnviados = mockOrcamentos.filter((o) => o.fornecedorId === id);
+  const orcamentosEnviados = orcamentos.filter((o) => o.fornecedorId === id);
+  const cotacaoById = new Map(cotacoes.map((c) => [c.id, c]));
 
   return (
     <div className="space-y-6">
@@ -114,7 +120,7 @@ export default async function FornecedorDetalhePage({ params }: Props) {
                         <tr key={o.id}>
                           <td className="px-4 py-2">
                             <Link href={`/orcamentos?cotacao=${o.cotacaoId}`} className="text-blue-600 hover:underline">
-                              {mockCotacoes.find((c) => c.id === o.cotacaoId)?.codigo}
+                              {cotacaoById.get(o.cotacaoId)?.codigo ?? o.cotacaoId}
                             </Link>
                           </td>
                           <td className="px-4 py-2 text-gray-600">{formatDate(o.dataOrcamento)}</td>

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowLeft, Paperclip, Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { notFound } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
-import { mockRequisicoes } from "@/lib/mock-data/requisicoes";
+import { getRequisicao } from "@/lib/db/requisicoes-repo";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   requisicaoStatusLabel, requisicaoStatusColor, urgenciaLabel, urgenciaColor,
@@ -19,7 +19,7 @@ export default async function RequisicaoDetalhePage({ params }: Props) {
   if (!user) return null;
   const perms = canDo(user.role);
 
-  const req = mockRequisicoes.find((r) => r.id === id);
+  const req = await getRequisicao(id);
   if (!req) notFound();
 
   return (
@@ -56,7 +56,7 @@ export default async function RequisicaoDetalhePage({ params }: Props) {
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between">
               <dt className="text-gray-500">Cotação de origem</dt>
-              <dd>{req.cotacao && <Link href={`/cotacoes/${req.cotacaoId}`} className="text-blue-600 hover:underline">{req.cotacao.codigo}</Link>}</dd>
+              <dd>{req.cotacaoId && <Link href={`/cotacoes/${req.cotacaoId}`} className="text-blue-600 hover:underline">{req.cotacao?.codigo ?? req.cotacaoId}</Link>}</dd>
             </div>
             <div className="flex justify-between"><dt className="text-gray-500">Valor total</dt><dd className="font-bold text-gray-900">{formatCurrency(req.valorTotal)}</dd></div>
             <div className="flex justify-between"><dt className="text-gray-500">Itens</dt><dd className="text-gray-700">{req.itens.length}</dd></div>

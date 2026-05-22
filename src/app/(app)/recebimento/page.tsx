@@ -1,6 +1,6 @@
 import { CheckCircle } from "lucide-react";
 import { getSession } from "@/lib/auth/session";
-import { mockRequisicoes } from "@/lib/mock-data/requisicoes";
+import { getRequisicoes } from "@/lib/db/requisicoes-repo";
 import { canDo } from "@/lib/security/permissions";
 import { RecebimentoClient } from "@/components/recebimento/recebimento-client";
 import type { ItemRow, RecebidoRow } from "@/components/recebimento/recebimento-client";
@@ -10,7 +10,9 @@ export default async function RecebimentoPage() {
   if (!user) return null;
   const perms = canDo(user.role);
 
-  const itensEmEntrega: ItemRow[] = mockRequisicoes
+  const requisicoes = await getRequisicoes();
+
+  const itensEmEntrega: ItemRow[] = requisicoes
     .filter((r) => ["PEDIDO_FECHADO", "AGUARDANDO_ENTREGA", "PARCIALMENTE_RECEBIDA"].includes(r.status))
     .flatMap((r) =>
       r.itens
@@ -31,7 +33,7 @@ export default async function RecebimentoPage() {
         }))
     );
 
-  const itensRecebidos: RecebidoRow[] = mockRequisicoes
+  const itensRecebidos: RecebidoRow[] = requisicoes
     .flatMap((r) =>
       r.itens
         .filter((i) => i.statusEntrega === "RECEBIDA")
@@ -69,7 +71,6 @@ export default async function RecebimentoPage() {
           userName={user.nome}
         />
       ) : (
-        /* read-only view */
         <div>
           <h2 className="mb-3 text-sm font-semibold text-gray-700">Aguardando recebimento</h2>
           {itensEmEntrega.length === 0 ? (

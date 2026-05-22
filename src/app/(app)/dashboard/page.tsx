@@ -13,8 +13,8 @@ import {
 import { getSession } from "@/lib/auth/session";
 import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { mockCotacoes } from "@/lib/mock-data/cotacoes";
-import { mockRequisicoes } from "@/lib/mock-data/requisicoes";
+import { getCotacoes } from "@/lib/db/cotacoes-repo";
+import { getRequisicoes } from "@/lib/db/requisicoes-repo";
 import {
   cotacaoStatusLabel,
   cotacaoStatusColor,
@@ -33,29 +33,34 @@ export default async function DashboardPage() {
   const user = await getSession();
   if (!user) return null;
 
-  const cotacoesAbertas = mockCotacoes.filter(
+  const [cotacoes, requisicoes] = await Promise.all([
+    getCotacoes(),
+    getRequisicoes(),
+  ]);
+
+  const cotacoesAbertas = cotacoes.filter(
     (c) => !["FINALIZADA", "CANCELADA", "REQUISICAO_GERADA"].includes(c.status)
   );
-  const aguardandoRespostas = mockCotacoes.filter((c) =>
+  const aguardandoRespostas = cotacoes.filter((c) =>
     ["ENVIADA_AOS_FORNECEDORES", "AGUARDANDO_RESPOSTAS"].includes(c.status)
   );
-  const reqAguardandoAprovacao = mockRequisicoes.filter(
+  const reqAguardandoAprovacao = requisicoes.filter(
     (r) => r.status === "AGUARDANDO_APROVACAO"
   );
-  const reqAprovadas = mockRequisicoes.filter((r) => r.status === "APROVADA");
-  const pedidosFechados = mockRequisicoes.filter((r) => r.status === "PEDIDO_FECHADO");
+  const reqAprovadas = requisicoes.filter((r) => r.status === "APROVADA");
+  const pedidosFechados = requisicoes.filter((r) => r.status === "PEDIDO_FECHADO");
 
-  const allItems = mockRequisicoes.flatMap((r) => r.itens);
+  const allItems = requisicoes.flatMap((r) => r.itens);
   const pecasAguardando = allItems.filter((i) =>
     ["AGUARDANDO_ENTREGA", "COMPRADA"].includes(i.statusEntrega)
   );
   const pecasParciais = allItems.filter((i) => i.statusEntrega === "RECEBIDA_PARCIALMENTE");
   const pecasRecebidas = allItems.filter((i) => i.statusEntrega === "RECEBIDA");
 
-  const fornsSemResposta = mockCotacoes.flatMap((c) =>
+  const fornsSemResposta = cotacoes.flatMap((c) =>
     c.fornecedores.filter((f) => f.status === "AGUARDANDO_RESPOSTA" || f.status === "MENSAGEM_ENVIADA")
   );
-  const cotacaoById = new Map(mockCotacoes.map((c) => [c.id, c]));
+  const cotacaoById = new Map(cotacoes.map((c) => [c.id, c]));
 
   return (
     <div className="space-y-6">
